@@ -2,7 +2,6 @@ package boot
 
 import (
 	"bytes"
-	"gin-boot/utils"
 	"strconv"
 	"strings"
 )
@@ -100,7 +99,7 @@ func buildWhere(where map[string]interface{}) (condition []byte, args []interfac
 		inLength int
 	)
 
-	args = utils.AcquireArgs()
+	args = AcquireArgs()
 	for field, value := range where {
 		operator = "="
 		position = strings.Index(field, " ")

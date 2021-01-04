@@ -18,7 +18,7 @@ type MysqlGroup struct {
 	slaveLen  int
 }
 
-func NewMysqlGroup(groupOption MysqlGroupOption) *MysqlGroup {
+func NewMysqlGroup(groupOption *MysqlGroupOption) *MysqlGroup {
 	if len(groupOption.Slaves) == 0 {
 		groupOption.Slaves = groupOption.Masters
 	}
@@ -69,7 +69,7 @@ func (mg *MysqlGroup) SelectPool(useMaster bool) *MysqlPool {
 }
 
 func (mg *MysqlGroup) Query(sqlStr string, args []interface{}, useMaster bool) (*sql.Rows, error) {
-	return mg.SelectPool(useMaster).Query(sqlStr, args)
+	return mg.SelectPool(useMaster).Query(sqlStr, args...)
 }
 
 func (mg *MysqlGroup) Execute(sqlStr string, args ...interface{}) (sql.Result, error) {

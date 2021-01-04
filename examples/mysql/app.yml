@@ -1,0 +1,11 @@
+boot:
+    masters:
+      - dsn: userName:password@tcp(127.0.0.1:3306)/dbname
+        maxConnLifetime: 600
+        maxOpenConns: 50
+        maxIdleConns: 10
+    slaves:
+      - dsn: userName:password@tcp(127.0.0.1:3306)/dbname
+        maxConnLifetime: 600
+        maxOpenConns: 50
+        maxIdleConns: 10
