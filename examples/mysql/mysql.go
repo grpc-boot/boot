@@ -50,10 +50,10 @@ func insert() {
 
 	if err != nil {
 		fmt.Println(err.Error())
+		return
 	}
 
-	lastInsertId, _ := result.LastInsertId()
-	fmt.Println("last insert id: ", lastInsertId)
+	fmt.Println("last insert id: ", result.LastInsertId)
 }
 
 func batchInsert() {
@@ -73,8 +73,7 @@ func batchInsert() {
 		return
 	}
 
-	affactedRows, _ := result.RowsAffected()
-	fmt.Println("batch insert affactedRows:", affactedRows)
+	fmt.Println("batch insert affactedRows:", result.AffectedRows)
 }
 
 func update() {
@@ -91,8 +90,7 @@ func update() {
 		return
 	}
 
-	affactedRows, _ := result.RowsAffected()
-	fmt.Println("update affactedRows:", affactedRows)
+	fmt.Println("update affactedRows:", result.AffectedRows)
 }
 
 func delete() {
@@ -104,8 +102,8 @@ func delete() {
 		fmt.Println(err.Error())
 		return
 	}
-	affactedRows, _ := result.RowsAffected()
-	fmt.Println("delete affactedRows:", affactedRows)
+
+	fmt.Println("delete affactedRows:", result.AffectedRows)
 }
 
 func equalQuery() {
@@ -156,6 +154,52 @@ func inQuery() {
 	fmt.Println("in query:", string(listBytes))
 }
 
+func rangeQuery() {
+	query := boot.AcquireQuery()
+	rows, err := query.Select("`id`, `user_name`, `add_time`").
+		From("`user`").
+		Where(map[string]interface{}{
+			"`add_time` <=": time.Now().Unix(),
+			"`add_time` >":  1,
+		}).
+		Order("`add_time` DESC", "`id` DESC").
+		Limit(0, 15).
+		All(bootMysqlGroup, false)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	userList, err := boot.ToMap(rows)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	listBytes, _ := json.Marshal(userList)
+	fmt.Println("range query:", string(listBytes))
+}
+
+func likeQuery() {
+	query := boot.AcquireQuery()
+	rows, err := query.From("`user`").
+		Where(map[string]interface{}{
+			"`user_name` LIKE": "u%",
+		}).
+		All(bootMysqlGroup, false)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	userList, err := boot.ToMap(rows)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	listBytes, _ := json.Marshal(userList)
+	fmt.Println("like query:", string(listBytes))
+}
+
 func masterQuery() {
 	query := boot.AcquireQuery()
 
@@ -189,4 +233,6 @@ func main() {
 	equalQuery()
 	masterQuery()
 	inQuery()
+	rangeQuery()
+	likeQuery()
 }

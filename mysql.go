@@ -19,6 +19,11 @@ type MysqlOption struct {
 	MaxIdleConns    int `yaml:"maxIdleConns" json:"maxIdleConns"`
 }
 
+type ExecResult struct {
+	LastInsertId int64
+	AffectedRows int64
+}
+
 type MysqlPool struct {
 	db *sql.DB
 }
@@ -73,7 +78,7 @@ func (mp *MysqlPool) One(query *Query) *sql.Row {
 	return mp.db.QueryRow(sqlStr, args...)
 }
 
-func (mp *MysqlPool) Insert(table string, columns map[string]interface{}) (sql.Result, error) {
+func (mp *MysqlPool) Insert(table string, columns map[string]interface{}) (*ExecResult, error) {
 	sqlBuffer := bytes.NewBufferString(fmt.Sprintf("INSERT INTO %s(", table))
 
 	args := AcquireArgs()
@@ -94,10 +99,28 @@ func (mp *MysqlPool) Insert(table string, columns map[string]interface{}) (sql.R
 	sqlBuffer.WriteByte(')')
 	values[len(values)-1] = ')'
 	sqlBuffer.Write(values)
-	return mp.db.Exec(sqlBuffer.String(), args...)
+	result, err := mp.db.Exec(sqlBuffer.String(), args...)
+	if err != nil {
+		return nil, err
+	}
+
+	r := &ExecResult{}
+	r.AffectedRows, err = result.RowsAffected()
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil, err
+	}
+
+	r.LastInsertId, err = result.LastInsertId()
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil, err
+	}
+
+	return r, nil
 }
 
-func (mp *MysqlPool) BatchInsert(table string, rows []map[string]interface{}) (sql.Result, error) {
+func (mp *MysqlPool) BatchInsert(table string, rows []map[string]interface{}) (*ExecResult, error) {
 	fields := make([]string, 0, len(rows[0]))
 	args := make([]interface{}, 0, len(rows)*len(rows[0]))
 	values := make([]string, 0, len(rows))
@@ -120,10 +143,22 @@ func (mp *MysqlPool) BatchInsert(table string, rows []map[string]interface{}) (s
 		values = append(values, string(value))
 	}
 
-	return mp.db.Exec(fmt.Sprintf("INSERT INTO %s(%s)VALUES%s", table, strings.Join(fields, ","), strings.Join(values, ",")), args...)
+	result, err := mp.db.Exec(fmt.Sprintf("INSERT INTO %s(%s)VALUES%s", table, strings.Join(fields, ","), strings.Join(values, ",")), args...)
+	if err != nil {
+		return nil, err
+	}
+
+	r := &ExecResult{}
+	r.AffectedRows, err = result.RowsAffected()
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil, err
+	}
+
+	return r, nil
 }
 
-func (mp *MysqlPool) UpdateAll(table string, set map[string]interface{}, where map[string]interface{}) (sql.Result, error) {
+func (mp *MysqlPool) UpdateAll(table string, set map[string]interface{}, where map[string]interface{}) (*ExecResult, error) {
 	sqlBuffer := bytes.NewBufferString(fmt.Sprintf("UPDATE %s SET ", table))
 
 	args := AcquireArgs()
@@ -149,21 +184,50 @@ func (mp *MysqlPool) UpdateAll(table string, set map[string]interface{}, where m
 		args = append(args, params...)
 	}
 
-	return mp.db.Exec(sqlBuffer.String(), args...)
+	result, err := mp.db.Exec(sqlBuffer.String(), args...)
+	if err != nil {
+		return nil, err
+	}
+
+	r := &ExecResult{}
+	r.AffectedRows, err = result.RowsAffected()
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil, err
+	}
+	return r, nil
 }
 
-func (mp *MysqlPool) DeleteAll(table string, where map[string]interface{}) (sql.Result, error) {
+func (mp *MysqlPool) DeleteAll(table string, where map[string]interface{}) (*ExecResult, error) {
 	sqlBuffer := bytes.NewBufferString("DELETE FROM ")
 	sqlBuffer.Write([]byte(table))
+
+	var (
+		result sql.Result
+		err    error
+	)
 
 	if len(where) > 0 {
 		condition, args := buildWhere(where)
 		defer ReleaseArgs(args)
 
 		sqlBuffer.Write(condition)
-		return mp.db.Exec(sqlBuffer.String(), args...)
+		result, err = mp.db.Exec(sqlBuffer.String(), args...)
+	} else {
+		result, err = mp.db.Exec(sqlBuffer.String())
 	}
-	return mp.db.Exec(sqlBuffer.String())
+
+	if err != nil {
+		return nil, err
+	}
+
+	r := &ExecResult{}
+	r.AffectedRows, err = result.RowsAffected()
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil, err
+	}
+	return r, nil
 }
 
 type RowFormat func(fieldValue map[string][]byte)

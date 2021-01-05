@@ -1,8 +1,14 @@
 package boot
 
 import (
+	"bytes"
 	"database/sql"
 	"math/rand"
+)
+
+var (
+	dialPrefix    = []byte("dial")
+	timeoutSuffix = []byte("i/o timeout")
 )
 
 type MysqlGroupOption struct {
@@ -16,6 +22,13 @@ type MysqlGroup struct {
 
 	masterLen int
 	slaveLen  int
+}
+
+func ConnLost(errMsg []byte) bool {
+	if bytes.HasPrefix(errMsg, dialPrefix) && bytes.HasSuffix(errMsg, timeoutSuffix) {
+		return true
+	}
+	return false
 }
 
 func NewMysqlGroup(groupOption *MysqlGroupOption) *MysqlGroup {
@@ -52,6 +65,12 @@ func NewMysqlGroup(groupOption *MysqlGroupOption) *MysqlGroup {
 	return group
 }
 
+func (mg *MysqlGroup) DownMaster(index int) {
+	if index >= mg.masterLen {
+		return
+	}
+}
+
 func (mg *MysqlGroup) SelectPool(useMaster bool) *MysqlPool {
 	if useMaster {
 		if mg.masterLen == 1 {
@@ -68,19 +87,24 @@ func (mg *MysqlGroup) SelectPool(useMaster bool) *MysqlPool {
 	return mg.Slaves[rand.Intn(mg.slaveLen)]
 }
 
-func (mg *MysqlGroup) Insert(table string, columns map[string]interface{}) (sql.Result, error) {
-	return mg.SelectPool(true).Insert(table, columns)
+func (mg *MysqlGroup) Insert(table string, columns map[string]interface{}) (*ExecResult, error) {
+	result, err := mg.SelectPool(true).Insert(table, columns)
+	if err != nil {
+		if ConnLost([]byte(err.Error())) {
+
+		}
+	}
 }
 
-func (mg *MysqlGroup) BatchInsert(table string, rows []map[string]interface{}) (sql.Result, error) {
+func (mg *MysqlGroup) BatchInsert(table string, rows []map[string]interface{}) (*ExecResult, error) {
 	return mg.SelectPool(true).BatchInsert(table, rows)
 }
 
-func (mg *MysqlGroup) UpdateAll(table string, set map[string]interface{}, where map[string]interface{}) (sql.Result, error) {
+func (mg *MysqlGroup) UpdateAll(table string, set map[string]interface{}, where map[string]interface{}) (*ExecResult, error) {
 	return mg.SelectPool(true).UpdateAll(table, set, where)
 }
 
-func (mg *MysqlGroup) DeleteAll(table string, where map[string]interface{}) (sql.Result, error) {
+func (mg *MysqlGroup) DeleteAll(table string, where map[string]interface{}) (*ExecResult, error) {
 	return mg.SelectPool(true).DeleteAll(table, where)
 }
 
