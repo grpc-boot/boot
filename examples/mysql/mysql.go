@@ -4,6 +4,8 @@ import (
 	"boot"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"time"
 )
 
 /********************测试表结构***********************
@@ -32,45 +34,159 @@ type User struct {
 
 func init() {
 	config = &Config{}
+	//加载配置
 	boot.Yaml("app.yml", config)
+
+	//初始化mysqlGroup
 	bootMysqlGroup = boot.NewMysqlGroup(&config.Boot)
 }
 
-//使用group查询
-func useGroup() {
-	rows, err := bootMysqlGroup.Query("SELECT * FROM `user` ORDER BY `id` DESC LIMIT 10", nil, false)
+func insert() {
+	current := time.Now()
+	result, err := bootMysqlGroup.Insert("`user`", map[string]interface{}{
+		"`user_name`": strconv.FormatInt(current.UnixNano(), 10),
+		"`add_time`":  current.Unix(),
+	})
+
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+
+	lastInsertId, _ := result.LastInsertId()
+	fmt.Println("last insert id: ", lastInsertId)
+}
+
+func batchInsert() {
+	result, err := bootMysqlGroup.BatchInsert("`user`", []map[string]interface{}{
+		{
+			"`user_name`": strconv.FormatInt(time.Now().UnixNano(), 10),
+			"`add_time`":  time.Now().Unix(),
+		},
+		{
+			"`user_name`": strconv.FormatInt(time.Now().UnixNano(), 10),
+			"`add_time`":  time.Now().Unix(),
+		},
+	})
+
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 
-	list := make([]User, 0, 10)
+	affactedRows, _ := result.RowsAffected()
+	fmt.Println("batch insert affactedRows:", affactedRows)
+}
 
+func update() {
+	result, err := bootMysqlGroup.UpdateAll("`user`",
+		map[string]interface{}{
+			"`user_name`": "u" + strconv.FormatInt(time.Now().Unix(), 10),
+		},
+		map[string]interface{}{
+			"`id`": 2,
+		})
+
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	affactedRows, _ := result.RowsAffected()
+	fmt.Println("update affactedRows:", affactedRows)
+}
+
+func delete() {
+	result, err := bootMysqlGroup.DeleteAll("`user`", map[string]interface{}{
+		"id": 3,
+	})
+
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	affactedRows, _ := result.RowsAffected()
+	fmt.Println("delete affactedRows:", affactedRows)
+}
+
+func equalQuery() {
+	query := boot.AcquireQuery()
+
+	row := query.Select("id", "user_name", "add_time").
+		From("user").
+		Where(map[string]interface{}{
+			"id": 1,
+		}).
+		One(bootMysqlGroup, false)
+
+	user := &User{}
+	err := row.Scan(&user.Id, &user.UserName, &user.AddTime)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	jsonBytes, _ := json.Marshal(user)
+	fmt.Println("equal query:", string(jsonBytes))
+}
+
+func inQuery() {
+	query := boot.AcquireQuery()
+
+	rows, err := query.From("`user`").
+		Where(map[string]interface{}{
+			"`id`": []interface{}{
+				1, 2, 3,
+			},
+		}).All(bootMysqlGroup, false)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	userList := make([]User, 0, 3)
 	boot.FormatRows(rows, func(fieldValue map[string][]byte) {
-		list = append(list, User{
+		userList = append(userList, User{
 			Id:       boot.Bytes2Int64(fieldValue["id"]),
 			UserName: string(fieldValue["user_name"]),
 			AddTime:  boot.Bytes2Int64(fieldValue["add_time"]),
 		})
 	})
-	data, _ := json.Marshal(list)
-	fmt.Println(string(data))
+
+	listBytes, _ := json.Marshal(userList)
+	fmt.Println("in query:", string(listBytes))
 }
 
-func useGroupMaster() {
-	rows, err := bootMysqlGroup.Query("SELECT * FROM `user` WHERE `id`=?", []interface{}{1}, true)
+func masterQuery() {
+	query := boot.AcquireQuery()
+
+	row := query.Select("`id`", "`user_name`", "`add_time`").
+		From("`user`").
+		Where(map[string]interface{}{
+			"`add_time` BETWEEN": []interface{}{
+				0,
+				time.Now().Unix(),
+			},
+		}).
+		Order("`id` DESC").
+		One(bootMysqlGroup, true) //使用主库查询
+
+	user := &User{}
+	err := row.Scan(&user.Id, &user.UserName, &user.AddTime)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 
-	list, _ := boot.ToMap(rows)
-	data, _ := json.Marshal(list)
-	fmt.Println(string(data))
+	jsonBytes, _ := json.Marshal(user)
+	fmt.Println("master query:", string(jsonBytes))
 }
 
 func main() {
-	useGroup()
-	useGroupMaster()
-
+	insert()
+	batchInsert()
+	update()
+	delete()
+	equalQuery()
+	masterQuery()
+	inQuery()
 }

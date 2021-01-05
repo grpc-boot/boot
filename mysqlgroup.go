@@ -68,10 +68,26 @@ func (mg *MysqlGroup) SelectPool(useMaster bool) *MysqlPool {
 	return mg.Slaves[rand.Intn(mg.slaveLen)]
 }
 
-func (mg *MysqlGroup) Query(sqlStr string, args []interface{}, useMaster bool) (*sql.Rows, error) {
-	return mg.SelectPool(useMaster).Query(sqlStr, args...)
+func (mg *MysqlGroup) Insert(table string, columns map[string]interface{}) (sql.Result, error) {
+	return mg.SelectPool(true).Insert(table, columns)
 }
 
-func (mg *MysqlGroup) Execute(sqlStr string, args ...interface{}) (sql.Result, error) {
-	return mg.SelectPool(true).Execute(sqlStr, args...)
+func (mg *MysqlGroup) BatchInsert(table string, rows []map[string]interface{}) (sql.Result, error) {
+	return mg.SelectPool(true).BatchInsert(table, rows)
+}
+
+func (mg *MysqlGroup) UpdateAll(table string, set map[string]interface{}, where map[string]interface{}) (sql.Result, error) {
+	return mg.SelectPool(true).UpdateAll(table, set, where)
+}
+
+func (mg *MysqlGroup) DeleteAll(table string, where map[string]interface{}) (sql.Result, error) {
+	return mg.SelectPool(true).DeleteAll(table, where)
+}
+
+func (mg *MysqlGroup) All(query *Query, useMaster bool) (*sql.Rows, error) {
+	return mg.SelectPool(useMaster).All(query)
+}
+
+func (mg *MysqlGroup) One(query *Query, useMaster bool) *sql.Row {
+	return mg.SelectPool(useMaster).One(query)
 }

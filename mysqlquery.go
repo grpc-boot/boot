@@ -2,6 +2,7 @@ package boot
 
 import (
 	"bytes"
+	"database/sql"
 	"strconv"
 	"strings"
 )
@@ -84,6 +85,14 @@ func (q *Query) Limit(offset int64, limit int64) *Query {
 	q.limit = limit
 	q.offset = offset
 	return q
+}
+
+func (q *Query) All(group *MysqlGroup, useMaster bool) (*sql.Rows, error) {
+	return group.All(q, useMaster)
+}
+
+func (q *Query) One(group *MysqlGroup, useMaster bool) *sql.Row {
+	return group.One(q, useMaster)
 }
 
 func buildWhere(where map[string]interface{}) (condition []byte, args []interface{}) {
