@@ -63,9 +63,9 @@ func (mp *MysqlPool) All(query *Query) (*sql.Rows, error) {
 	sqlStr, args := BuildQuery(query)
 	defer func() {
 		ReleaseQuery(query)
-		ReleaseArgs(args)
+		ReleaseArgs(*args)
 	}()
-	return mp.db.Query(sqlStr, args...)
+	return mp.db.Query(sqlStr, *args...)
 }
 
 func (mp *MysqlPool) One(query *Query) *sql.Row {
@@ -73,9 +73,9 @@ func (mp *MysqlPool) One(query *Query) *sql.Row {
 	sqlStr, args := BuildQuery(query)
 	defer func() {
 		ReleaseQuery(query)
-		ReleaseArgs(args)
+		ReleaseArgs(*args)
 	}()
-	return mp.db.QueryRow(sqlStr, args...)
+	return mp.db.QueryRow(sqlStr, *args...)
 }
 
 func (mp *MysqlPool) Insert(table string, columns map[string]interface{}) (*ExecResult, error) {
@@ -107,13 +107,11 @@ func (mp *MysqlPool) Insert(table string, columns map[string]interface{}) (*Exec
 	r := &ExecResult{}
 	r.AffectedRows, err = result.RowsAffected()
 	if err != nil {
-		fmt.Println(err.Error())
 		return nil, err
 	}
 
 	r.LastInsertId, err = result.LastInsertId()
 	if err != nil {
-		fmt.Println(err.Error())
 		return nil, err
 	}
 
@@ -151,7 +149,6 @@ func (mp *MysqlPool) BatchInsert(table string, rows []map[string]interface{}) (*
 	r := &ExecResult{}
 	r.AffectedRows, err = result.RowsAffected()
 	if err != nil {
-		fmt.Println(err.Error())
 		return nil, err
 	}
 
@@ -178,10 +175,10 @@ func (mp *MysqlPool) UpdateAll(table string, set map[string]interface{}, where m
 
 	if len(where) > 0 {
 		condition, params := buildWhere(where)
-		defer ReleaseArgs(params)
+		defer ReleaseArgs(*params)
 
 		sqlBuffer.Write(condition)
-		args = append(args, params...)
+		args = append(args, *params...)
 	}
 
 	result, err := mp.db.Exec(sqlBuffer.String(), args...)
@@ -192,7 +189,6 @@ func (mp *MysqlPool) UpdateAll(table string, set map[string]interface{}, where m
 	r := &ExecResult{}
 	r.AffectedRows, err = result.RowsAffected()
 	if err != nil {
-		fmt.Println(err.Error())
 		return nil, err
 	}
 	return r, nil
@@ -209,10 +205,10 @@ func (mp *MysqlPool) DeleteAll(table string, where map[string]interface{}) (*Exe
 
 	if len(where) > 0 {
 		condition, args := buildWhere(where)
-		defer ReleaseArgs(args)
+		defer ReleaseArgs(*args)
 
 		sqlBuffer.Write(condition)
-		result, err = mp.db.Exec(sqlBuffer.String(), args...)
+		result, err = mp.db.Exec(sqlBuffer.String(), *args...)
 	} else {
 		result, err = mp.db.Exec(sqlBuffer.String())
 	}
@@ -224,7 +220,6 @@ func (mp *MysqlPool) DeleteAll(table string, where map[string]interface{}) (*Exe
 	r := &ExecResult{}
 	r.AffectedRows, err = result.RowsAffected()
 	if err != nil {
-		fmt.Println(err.Error())
 		return nil, err
 	}
 	return r, nil

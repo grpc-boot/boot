@@ -87,15 +87,11 @@ func (q *Query) Limit(offset int64, limit int64) *Query {
 	return q
 }
 
-func (q *Query) All(group *MysqlGroup, useMaster bool) (*sql.Rows, error) {
+func (q *Query) Query(group *MysqlGroup, useMaster bool) (*sql.Rows, error) {
 	return group.All(q, useMaster)
 }
 
-func (q *Query) One(group *MysqlGroup, useMaster bool) *sql.Row {
-	return group.One(q, useMaster)
-}
-
-func buildWhere(where map[string]interface{}) (condition []byte, args []interface{}) {
+func buildWhere(where map[string]interface{}) (condition []byte, params *[]interface{}) {
 	if len(where) < 1 {
 		return
 	}
@@ -108,7 +104,7 @@ func buildWhere(where map[string]interface{}) (condition []byte, args []interfac
 		inLength int
 	)
 
-	args = AcquireArgs()
+	args := AcquireArgs()
 	for field, value := range where {
 		operator = "="
 		position = strings.Index(field, " ")
@@ -147,10 +143,10 @@ func buildWhere(where map[string]interface{}) (condition []byte, args []interfac
 	}
 
 	whereCon := buf.Bytes()
-	return whereCon[:len(whereCon)-3], args
+	return whereCon[:len(whereCon)-3], &args
 }
 
-func BuildQuery(q *Query) (sql string, args []interface{}) {
+func BuildQuery(q *Query) (sql string, args *[]interface{}) {
 	where := ""
 
 	condition, args := buildWhere(q.where)

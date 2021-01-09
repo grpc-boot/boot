@@ -1,11 +1,17 @@
 boot:
     masters:
-      - dsn: userName:password@tcp(127.0.0.1:3306)/dbname
+      - dsn: browser:browser.360@tcp(10.16.49.113:3306)/test?timeout=5s&readTimeout=6s
         maxConnLifetime: 600
         maxOpenConns: 50
         maxIdleConns: 10
+
+      - dsn: browser:browser.360@tcp(10.16.49.113:3306)/test?timeout=1s&readTimeout=6s
+        maxConnLifetime: 600
+        maxOpenConns: 50
+        maxIdleConns: 10
+
     slaves:
-      - dsn: userName:password@tcp(127.0.0.1:3306)/dbname
+      - dsn: browser:browser.360@tcp(10.16.49.113:3306)/test?timeout=1s&readTimeout=6s
         maxConnLifetime: 600
         maxOpenConns: 50
         maxIdleConns: 10

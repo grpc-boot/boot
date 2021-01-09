@@ -4,6 +4,7 @@ import (
 	"boot"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"strconv"
 	"time"
 )
@@ -49,7 +50,7 @@ func insert() {
 	})
 
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Printf("%#v", err)
 		return
 	}
 
@@ -109,22 +110,30 @@ func delete() {
 func equalQuery() {
 	query := boot.AcquireQuery()
 
-	row := query.Select("id", "user_name", "add_time").
+	rows, err := query.Select("id", "user_name", "add_time").
 		From("user").
 		Where(map[string]interface{}{
 			"id": 1,
 		}).
-		One(bootMysqlGroup, false)
+		Limit(0, 1).
+		Query(bootMysqlGroup, false)
 
-	user := &User{}
-	err := row.Scan(&user.Id, &user.UserName, &user.AddTime)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 
-	jsonBytes, _ := json.Marshal(user)
-	fmt.Println("equal query:", string(jsonBytes))
+	if rows.Next() {
+		user := &User{}
+		err := rows.Scan(&user.Id, &user.UserName, &user.AddTime)
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+
+		jsonBytes, _ := json.Marshal(user)
+		fmt.Println("equal query:", string(jsonBytes))
+	}
 }
 
 func inQuery() {
@@ -135,7 +144,7 @@ func inQuery() {
 			"`id`": []interface{}{
 				1, 2, 3,
 			},
-		}).All(bootMysqlGroup, false)
+		}).Query(bootMysqlGroup, false)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
@@ -164,7 +173,7 @@ func rangeQuery() {
 		}).
 		Order("`add_time` DESC", "`id` DESC").
 		Limit(0, 15).
-		All(bootMysqlGroup, false)
+		Query(bootMysqlGroup, false)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
@@ -185,7 +194,7 @@ func likeQuery() {
 		Where(map[string]interface{}{
 			"`user_name` LIKE": "u%",
 		}).
-		All(bootMysqlGroup, false)
+		Query(bootMysqlGroup, false)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
@@ -203,7 +212,7 @@ func likeQuery() {
 func masterQuery() {
 	query := boot.AcquireQuery()
 
-	row := query.Select("`id`", "`user_name`", "`add_time`").
+	rows, err := query.Select("`id`", "`user_name`", "`add_time`").
 		From("`user`").
 		Where(map[string]interface{}{
 			"`add_time` BETWEEN": []interface{}{
@@ -212,10 +221,20 @@ func masterQuery() {
 			},
 		}).
 		Order("`id` DESC").
-		One(bootMysqlGroup, true) //使用主库查询
+		Limit(0, 1).
+		Query(bootMysqlGroup, true)
+
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	if !rows.Next() {
+		return
+	}
 
 	user := &User{}
-	err := row.Scan(&user.Id, &user.UserName, &user.AddTime)
+	err = rows.Scan(&user.Id, &user.UserName, &user.AddTime)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
@@ -226,6 +245,8 @@ func masterQuery() {
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
+
 	insert()
 	batchInsert()
 	update()
