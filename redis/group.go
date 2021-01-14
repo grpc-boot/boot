@@ -1,4 +1,4 @@
-package boot
+package redis
 
 import (
 	"hash/crc32"

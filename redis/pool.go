@@ -1,6 +1,7 @@
-package boot
+package redis
 
 import (
+	"boot"
 	"fmt"
 	"strings"
 	"sync"
@@ -102,21 +103,16 @@ func (r *Redis) Send(cmd string, args ...interface{}) error {
 	return r.conn.Send(cmd, args...)
 }
 
-func (r *Redis) Multi() Multi {
-	return acquireMulti()
-}
-
-//----------------------------------String----------------------------------------------
 func (r *Redis) Get(key []byte) ([]byte, error) {
 	return redigo.Bytes(r.conn.Do("GET", key))
 }
 
 func (r *Redis) Set(key []byte, params ...interface{}) bool {
-	args := AcquireArgs()
+	args := boot.AcquireArgs()
 	args = append(args, key)
 	args = append(args, params...)
 	receive, _ := redigo.String(r.conn.Do("SET", args...))
-	ReleaseArgs(args)
+	boot.ReleaseArgs(args)
 	return strings.ToUpper(receive) == "OK"
 }
 
@@ -125,69 +121,6 @@ func (r *Redis) SetTimeout(key []byte, value interface{}, timeoutSecond int64) b
 	return strings.ToUpper(receive) == "OK"
 }
 
-//----------------------------------String----------------------------------------------
-
-//----------------------------------Multi----------------------------------------------
-type Multi []Cmd
-
-type Cmd struct {
-	cmd  string
-	key  []byte
-	args []interface{}
-}
-
-func acquireMulti() Multi {
-	return cmdListPool.Get().(Multi)
-}
-
-func releaseMulti(cmdList Multi) {
-	cmdList = cmdList[:0]
-	cmdListPool.Put(cmdList)
-}
-
-func NewCmd(cmd string, args ...interface{}) Cmd {
-	return Cmd{
-		cmd:  cmd,
-		args: args,
-	}
-}
-
-func (m Multi) Send(cmd string, args ...interface{}) Multi {
-	m = append(m, NewCmd(cmd, args...))
-	return m
-}
-
-func (m Multi) ExecMulti(redis *Redis) ([]interface{}, error) {
-	err := redis.conn.Send("MULTI")
-	if err != nil {
-		return nil, err
-	}
-
-	for _, cmd := range m {
-		err := redis.conn.Send(cmd.cmd, cmd.args...)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	reply, err := redis.conn.Do("EXEC")
-	releaseMulti(m)
-	if err != nil {
-		return nil, err
-	}
-
-	return reply.([]interface{}), nil
-}
-
-func (m Multi) ExecPipeline(redis *Redis) ([]interface{}, error) {
-	for _, cmd := range m {
-		_ = redis.conn.Send(cmd.cmd, cmd.args...)
-	}
-	reply, err := redis.conn.Do("")
-	releaseMulti(m)
-	if err != nil {
-		return nil, err
-	}
-
-	return reply.([]interface{}), nil
+func (r *Redis) Multi() Multi {
+	return acquireMulti()
 }

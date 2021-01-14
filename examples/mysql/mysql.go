@@ -2,6 +2,7 @@ package main
 
 import (
 	"boot"
+	"boot/mysql"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -19,12 +20,12 @@ CREATE TABLE `user` (
 */
 
 var (
-	config         *Config
-	bootMysqlGroup *boot.MysqlGroup
+	config *Config
+	group  *mysql.Group
 )
 
 type Config struct {
-	Boot boot.MysqlGroupOption `yaml:"boot" json:"boot"`
+	Boot mysql.GroupOption `yaml:"boot" json:"boot"`
 }
 
 type User struct {
@@ -39,12 +40,12 @@ func init() {
 	boot.Yaml("app.yml", config)
 
 	//初始化mysqlGroup
-	bootMysqlGroup = boot.NewMysqlGroup(&config.Boot)
+	group = mysql.NewGroup(&config.Boot)
 }
 
 func insert() {
 	current := time.Now()
-	result, err := bootMysqlGroup.Insert("`user`", map[string]interface{}{
+	result, err := group.Insert("`user`", map[string]interface{}{
 		"`user_name`": strconv.FormatInt(current.UnixNano(), 10),
 		"`add_time`":  current.Unix(),
 	})
@@ -58,7 +59,7 @@ func insert() {
 }
 
 func batchInsert() {
-	result, err := bootMysqlGroup.BatchInsert("`user`", []map[string]interface{}{
+	result, err := group.BatchInsert("`user`", []map[string]interface{}{
 		{
 			"`user_name`": strconv.FormatInt(time.Now().UnixNano(), 10),
 			"`add_time`":  time.Now().Unix(),
@@ -78,7 +79,7 @@ func batchInsert() {
 }
 
 func update() {
-	result, err := bootMysqlGroup.UpdateAll("`user`",
+	result, err := group.UpdateAll("`user`",
 		map[string]interface{}{
 			"`user_name`": "u" + strconv.FormatInt(time.Now().Unix(), 10),
 		},
@@ -94,8 +95,8 @@ func update() {
 	fmt.Println("update affactedRows:", result.AffectedRows)
 }
 
-func delete() {
-	result, err := bootMysqlGroup.DeleteAll("`user`", map[string]interface{}{
+func execDelete() {
+	result, err := group.DeleteAll("`user`", map[string]interface{}{
 		"id": 3,
 	})
 
@@ -108,7 +109,8 @@ func delete() {
 }
 
 func equalQuery() {
-	query := boot.AcquireQuery()
+	query := mysql.AcquireQuery()
+	defer mysql.ReleaseQuery(query)
 
 	rows, err := query.Select("id", "user_name", "add_time").
 		From("user").
@@ -116,7 +118,7 @@ func equalQuery() {
 			"id": 1,
 		}).
 		Limit(0, 1).
-		Query(bootMysqlGroup, false)
+		QueryByGroup(group, false)
 
 	if err != nil {
 		fmt.Println(err.Error())
@@ -137,21 +139,22 @@ func equalQuery() {
 }
 
 func inQuery() {
-	query := boot.AcquireQuery()
+	query := mysql.AcquireQuery()
+	defer mysql.ReleaseQuery(query)
 
 	rows, err := query.From("`user`").
 		Where(map[string]interface{}{
 			"`id`": []interface{}{
 				1, 2, 3,
 			},
-		}).Query(bootMysqlGroup, false)
+		}).QueryByGroup(group, false)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 
 	userList := make([]User, 0, 3)
-	boot.FormatRows(rows, func(fieldValue map[string][]byte) {
+	mysql.FormatRows(rows, func(fieldValue map[string][]byte) {
 		userList = append(userList, User{
 			Id:       boot.Bytes2Int64(fieldValue["id"]),
 			UserName: string(fieldValue["user_name"]),
@@ -164,7 +167,8 @@ func inQuery() {
 }
 
 func rangeQuery() {
-	query := boot.AcquireQuery()
+	query := mysql.AcquireQuery()
+	defer mysql.ReleaseQuery(query)
 	rows, err := query.Select("`id`, `user_name`, `add_time`").
 		From("`user`").
 		Where(map[string]interface{}{
@@ -173,13 +177,13 @@ func rangeQuery() {
 		}).
 		Order("`add_time` DESC", "`id` DESC").
 		Limit(0, 15).
-		Query(bootMysqlGroup, false)
+		QueryByGroup(group, false)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 
-	userList, err := boot.ToMap(rows)
+	userList, err := mysql.ToMap(rows)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
@@ -189,18 +193,19 @@ func rangeQuery() {
 }
 
 func likeQuery() {
-	query := boot.AcquireQuery()
+	query := mysql.AcquireQuery()
+	defer mysql.ReleaseQuery(query)
 	rows, err := query.From("`user`").
 		Where(map[string]interface{}{
 			"`user_name` LIKE": "u%",
 		}).
-		Query(bootMysqlGroup, false)
+		QueryByGroup(group, false)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 
-	userList, err := boot.ToMap(rows)
+	userList, err := mysql.ToMap(rows)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
@@ -210,7 +215,8 @@ func likeQuery() {
 }
 
 func masterQuery() {
-	query := boot.AcquireQuery()
+	query := mysql.AcquireQuery()
+	defer mysql.ReleaseQuery(query)
 
 	rows, err := query.Select("`id`", "`user_name`", "`add_time`").
 		From("`user`").
@@ -222,7 +228,7 @@ func masterQuery() {
 		}).
 		Order("`id` DESC").
 		Limit(0, 1).
-		Query(bootMysqlGroup, true)
+		QueryByGroup(group, true)
 
 	if err != nil {
 		fmt.Println(err.Error())
@@ -244,16 +250,63 @@ func masterQuery() {
 	fmt.Println("master query:", string(jsonBytes))
 }
 
+func transaction() {
+	trans, err := group.Begin()
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	result, err := trans.UpdateAll("`user`", map[string]interface{}{
+		"add_time": time.Now().Unix(),
+	}, map[string]interface{}{
+		"id": 2,
+	})
+
+	if err != nil {
+		_ = trans.Rollback()
+		fmt.Println(err.Error())
+		return
+	}
+
+	fmt.Println("受影响行数", result.AffectedRows)
+	query := mysql.AcquireQuery()
+	defer mysql.ReleaseQuery(query)
+
+	query.From("`user`").
+		Where(map[string]interface{}{
+			"id": []interface{}{
+				2, 3,
+			},
+		})
+	rows, err := trans.Find(query)
+	if err != nil {
+		_ = trans.Rollback()
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println(mysql.ToMap(rows))
+	err = trans.Commit()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Commit Success")
+}
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
+	transaction()
 	insert()
 	batchInsert()
 	update()
-	delete()
+	execDelete()
 	equalQuery()
 	masterQuery()
 	inQuery()
 	rangeQuery()
 	likeQuery()
+	fmt.Println(group.GetBadPool(true), group.GetBadPool(false))
 }
