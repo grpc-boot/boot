@@ -2,7 +2,9 @@ package redis
 
 import (
 	"boot"
+	"boot/hash"
 	"fmt"
+	"hash/crc32"
 	"strings"
 	"sync"
 	"time"
@@ -37,12 +39,15 @@ type RedisOption struct {
 	WriteTimeout int `yaml:"writeTimeout" json:"writeTimeout"`
 }
 
-type RedisPool struct {
+type Pool struct {
+	hash.Server
+	id   []byte
 	pool *redigo.Pool
 }
 
-func NewPool(option *RedisOption) *RedisPool {
-	return &RedisPool{
+func NewPool(option *RedisOption) *Pool {
+	return &Pool{
+		id: []byte(fmt.Sprintf("%s:%s:%d", option.Host, option.Port, option.Db)),
 		pool: &redigo.Pool{
 			MaxConnLifetime: time.Second * time.Duration(option.MaxConnLifetime),
 			MaxIdle:         option.MaxIdle,
@@ -76,13 +81,17 @@ func NewPool(option *RedisOption) *RedisPool {
 	}
 }
 
-func (rp *RedisPool) Get() *Redis {
+func (p *Pool) HashCode() (hashValue uint32) {
+	return crc32.ChecksumIEEE(p.id)
+}
+
+func (p *Pool) Get() *Redis {
 	return &Redis{
-		conn: rp.pool.Get(),
+		conn: p.pool.Get(),
 	}
 }
 
-func (rp *RedisPool) Put(redis *Redis) {
+func (p *Pool) Put(redis *Redis) {
 	_ = redis.Close()
 }
 
