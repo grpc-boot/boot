@@ -1,6 +1,5 @@
 package container
 
-//golang空结构不占用空间
 var itemExists = struct{}{}
 
 //非线程安全版本，如需要线程安全版本，需要自行加锁

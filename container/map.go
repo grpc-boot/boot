@@ -46,6 +46,10 @@ func (m *Map) Delete(key string) {
 	}
 }
 
+func (m *Map) Length() int64 {
+	return atomic.LoadInt64(&m.length)
+}
+
 type shard struct {
 	mutex sync.RWMutex
 	items map[string]interface{}
@@ -73,22 +77,6 @@ func (s *shard) get(key string) (value interface{}, exists bool) {
 	defer s.mutex.RUnlock()
 
 	value, exists = s.items[key]
-	return
-}
-
-func (s *shard) mget(keys ...string) (values []interface{}) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-	values = make([]interface{}, 0, len(keys))
-
-	for _, key := range keys {
-		if value, exists := s.items[key]; exists {
-			values = append(values, value)
-		} else {
-			values = append(values, nil)
-		}
-	}
-
 	return
 }
 
