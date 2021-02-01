@@ -16,9 +16,17 @@ type Map struct {
 }
 
 func NewMap() *Map {
-	return &Map{
-		shardList: [255]shard{},
+	m := &Map{
+		shardList: [maxShard]shard{},
 	}
+
+	for index := 0; index < maxShard; index++ {
+		m.shardList[index] = shard{
+			items: make(map[string]interface{}, 0),
+		}
+	}
+
+	return m
 }
 
 func (m *Map) index(key string) uint32 {
