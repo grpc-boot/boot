@@ -19,8 +19,6 @@ const (
 	writeEvent = errorEvent | unix.EPOLLOUT
 )
 
-type EventHandler func(fd int, event uint8)
-
 type Epoll struct {
 	fd      int
 	eventFd int

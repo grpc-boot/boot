@@ -89,10 +89,16 @@ func (s *shard) get(fd int) (conn *Connection, exists bool) {
 //region 1.2 Connection
 type Connection struct {
 	fd         int
-	reactorId  int
 	latestTime int64
 	data       map[string]interface{}
 	mutex      sync.RWMutex
+}
+
+func newConnection(fd int) *Connection {
+	return &Connection{
+		fd:   fd,
+		data: make(map[string]interface{}),
+	}
 }
 
 func (c *Connection) Set(key string, value interface{}) {

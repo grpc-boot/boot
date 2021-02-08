@@ -1,38 +1,27 @@
 package epoll
 
-type Manager struct {
-	reactors    []*Epoll
+type Reactor struct {
+	eventLoops  []EventLoop
 	connections *ConnectionMap
 }
 
-func NewManager(max int) *Manager {
-	manager := &Manager{
-		reactors:    make([]*Epoll, max, max),
+func NewManager(max int) *Reactor {
+	manager := &Reactor{
+		eventLoops:  make([]EventLoop, max, max),
 		connections: NewConnectionMap(1),
 	}
 
 	for index := 0; index < max; index++ {
-		manager.reactors[index], _ = NewEpoll()
+		poller, _ := NewEpoll()
+		manager.eventLoops[index] = &eventLoop{
+			poller:      poller,
+			connections: manager.connections,
+		}
 	}
 
 	return manager
 }
 
-func (m *Manager) Add(conn *Connection) {
-	conn.reactorId = conn.fd & len(m.reactors)
-	m.reactors[conn.reactorId].AddRead(conn.fd)
-	m.connections.Add(conn)
-}
+func (m *Reactor) Start() {
 
-func (m *Manager) Remove(fd int) {
-	m.reactors[fd*len(m.reactors)].Remove(fd)
-	m.connections.Del(fd)
-}
-
-func (m *Manager) Start() {
-	for index, _ := range m.reactors {
-		go m.reactors[index].Poll(func(fd int, event uint8) {
-
-		})
-	}
 }
