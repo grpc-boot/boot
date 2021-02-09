@@ -2,25 +2,22 @@ package container
 
 import (
 	"hash/crc32"
+	"math"
 	"sync"
 	"sync/atomic"
 )
 
-const (
-	maxShard = 255
-)
-
 type Map struct {
-	shardList [maxShard]shard
+	shardList [256]shard
 	length    int64
 }
 
 func NewMap() *Map {
 	m := &Map{
-		shardList: [maxShard]shard{},
+		shardList: [256]shard{},
 	}
 
-	for index := 0; index < maxShard; index++ {
+	for index := 0; index < math.MaxUint8; index++ {
 		m.shardList[index] = shard{
 			items: make(map[string]interface{}, 0),
 		}
@@ -30,7 +27,7 @@ func NewMap() *Map {
 }
 
 func (m *Map) index(key string) uint32 {
-	return crc32.ChecksumIEEE([]byte(key)) & maxShard
+	return crc32.ChecksumIEEE([]byte(key)) & math.MaxUint8
 }
 
 func (m *Map) Set(key string, value interface{}) {
