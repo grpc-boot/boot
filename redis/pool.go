@@ -116,6 +116,10 @@ func (r *Redis) Get(key []byte) ([]byte, error) {
 	return redigo.Bytes(r.conn.Do("GET", key))
 }
 
+func (r *Redis) Del(keys ...interface{}) (int64, error) {
+	return redigo.Int64(r.conn.Do("DEL", keys...))
+}
+
 func (r *Redis) Set(key []byte, params ...interface{}) bool {
 	args := boot.AcquireArgs()
 	args = append(args, key)
