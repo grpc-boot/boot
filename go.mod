@@ -1,4 +1,4 @@
-module boot
+module github.com/grpc-boot/boot
 
 go 1.13
 
