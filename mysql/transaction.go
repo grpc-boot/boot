@@ -1,8 +1,9 @@
 package mysql
 
 import (
-	"boot"
 	"database/sql"
+
+	"github.com/grpc-boot/boot"
 )
 
 type Transaction struct {

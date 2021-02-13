@@ -1,8 +1,6 @@
 package redis
 
 import (
-	"boot"
-	"boot/hash"
 	"fmt"
 	"hash/crc32"
 	"strings"
@@ -10,6 +8,8 @@ import (
 	"time"
 
 	redigo "github.com/garyburd/redigo/redis"
+	"github.com/grpc-boot/boot"
+	"github.com/grpc-boot/boot/hash"
 )
 
 var (

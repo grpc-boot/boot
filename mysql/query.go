@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"boot"
+	"github.com/grpc-boot/boot"
 )
 
 const (

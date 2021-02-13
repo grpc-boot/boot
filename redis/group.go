@@ -1,7 +1,7 @@
 package redis
 
 import (
-	"boot/hash"
+	"github.com/grpc-boot/boot/hash"
 )
 
 type Group struct {

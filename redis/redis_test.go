@@ -1,9 +1,10 @@
 package redis
 
 import (
-	"boot"
 	"fmt"
 	"testing"
+
+	"github.com/grpc-boot/boot"
 )
 
 var (

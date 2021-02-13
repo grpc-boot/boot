@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"boot"
+	"github.com/grpc-boot/boot"
 )
 
 var (

@@ -7,7 +7,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	"boot"
+	"github.com/grpc-boot/boot"
 )
 
 type PoolOption struct {
