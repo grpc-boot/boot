@@ -1,0 +1,10 @@
+consumer:
+  properties:
+    bootstrap.servers: 'localhost'
+    group.id: 'myGroup'
+    auto.offset.reset: 'earliest'
+
+producer:
+  properties:
+    bootstrap.servers: 'localhost'
+    go.produce.channel.size: 40960

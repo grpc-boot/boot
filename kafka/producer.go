@@ -1,6 +1,7 @@
 package kafka
 
 import (
+	"context"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -19,11 +20,11 @@ var (
 		},
 	}
 
-	MsgGet = func() *librdkafka.Message {
+	msgGet = func() *librdkafka.Message {
 		return msgPool.Get().(*librdkafka.Message)
 	}
 
-	MsgPut = func(msg *librdkafka.Message) {
+	msgPut = func(msg *librdkafka.Message) {
 		msg.Value = msg.Value[:0]
 		msg.Headers = nil
 		msg.Key = nil
@@ -32,6 +33,15 @@ var (
 		msg.Timestamp = time.Time{}
 		msg.TimestampType = 0
 		msgPool.Put(msg)
+	}
+
+	BuildMsg = func(topic *string, msg []byte) (message *librdkafka.Message) {
+		message = msgGet()
+		message.TopicPartition.Topic = topic
+		message.Value = msg
+		message.Timestamp = time.Now()
+		message.TimestampType = librdkafka.TimestampCreateTime
+		return
 	}
 )
 
@@ -62,6 +72,38 @@ func (p *Producer) Produce(msg *librdkafka.Message, deliveryChan chan librdkafka
 	return p.producer.Produce(msg, deliveryChan)
 }
 
+func (p *Producer) ProduceString(topic *string, msg string, deliveryChan chan librdkafka.Event) (err error) {
+	return p.Produce(BuildMsg(topic, []byte(msg)), deliveryChan)
+}
+
+func (p *Producer) ProduceBytes(topic *string, msg []byte, deliveryChan chan librdkafka.Event) (err error) {
+	return p.Produce(BuildMsg(topic, msg), deliveryChan)
+}
+
+func (p *Producer) Flush(timeoutMs int) {
+	p.producer.Flush(timeoutMs)
+}
+
+func (p *Producer) Purge(flags int) (err error) {
+	return p.producer.Purge(flags)
+}
+
+func (p *Producer) Begin() (err error) {
+	return p.producer.BeginTransaction()
+}
+
+func (p *Producer) Rollback(ctx context.Context) (err error) {
+	return p.producer.AbortTransaction(ctx)
+}
+
+func (p *Producer) Commit(ctx context.Context) (err error) {
+	return p.producer.CommitTransaction(ctx)
+}
+
+func (p *Producer) InitTrans(ctx context.Context) (err error) {
+	return p.producer.InitTransactions(ctx)
+}
+
 func (p *Producer) ErrorHandler(handler func(msg *librdkafka.Message, err error)) {
 	go func() {
 		defer func() {
@@ -77,9 +119,13 @@ func (p *Producer) ErrorHandler(handler func(msg *librdkafka.Message, err error)
 					handler(ev, ev.TopicPartition.Error)
 				} else {
 					atomic.AddUint64(&p.successCount, 1)
-					MsgPut(ev)
+					msgPut(ev)
 				}
 			}
 		}
 	}()
+}
+
+func (p *Producer) Close() {
+	p.producer.Close()
 }

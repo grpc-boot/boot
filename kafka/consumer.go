@@ -3,6 +3,7 @@ package kafka
 import (
 	"log"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -16,6 +17,7 @@ type Option struct {
 type Consumer struct {
 	consumer *librdkafka.Consumer
 	run      uint32
+	wg       *sync.WaitGroup
 }
 
 func NewConsumer(option *Option) (consumer *Consumer, err error) {
@@ -48,6 +50,8 @@ func (c *Consumer) RunConsume(lockOsThread bool, handler func(topic string, msg 
 		}()
 
 		atomic.StoreUint32(&c.run, 1)
+		c.wg.Add(1)
+
 		for {
 			topic, msg, err = c.ReadBytes(-1)
 			handler(topic, msg, err)
@@ -56,11 +60,13 @@ func (c *Consumer) RunConsume(lockOsThread bool, handler func(topic string, msg 
 				break
 			}
 		}
+		c.wg.Done()
 	}()
 }
 
 func (c *Consumer) StopConsume() {
 	atomic.StoreUint32(&c.run, 0)
+	c.wg.Wait()
 }
 
 func (c *Consumer) Subscribe(topics []string, cb librdkafka.RebalanceCb) (err error) {
