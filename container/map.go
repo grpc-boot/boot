@@ -1,66 +1,96 @@
 package container
 
 import (
+	"fmt"
+	"github.com/grpc-boot/boot/hash"
 	"hash/crc32"
 	"math"
 	"sync"
 	"sync/atomic"
+
+	"github.com/grpc-boot/boot"
 )
 
 type Map struct {
 	shardList [256]shard
-	length    int64
+	length    uint64
 }
 
 func NewMap() *Map {
-	m := &Map{
-		shardList: [256]shard{},
-	}
-
+	m := &Map{}
 	for index := 0; index < math.MaxUint8; index++ {
 		m.shardList[index] = shard{
-			items: make(map[string]interface{}, 0),
+			items: make(map[interface{}]interface{}, 0),
 		}
 	}
 
 	return m
 }
 
-func (m *Map) index(key string) uint32 {
-	return crc32.ChecksumIEEE([]byte(key)) & math.MaxUint8
+func (m *Map) index(key interface{}) uint8 {
+	switch key.(type) {
+	//优先使用自定义hash
+	case hash.CanHash:
+		return uint8(key.(hash.CanHash).HashCode() & math.MaxUint8)
+	case string:
+		return uint8(crc32.ChecksumIEEE([]byte(key.(string))) & math.MaxUint8)
+	case []byte:
+		return uint8(crc32.ChecksumIEEE(key.([]byte)) & math.MaxUint8)
+	case uint8:
+		return key.(uint8) & math.MaxUint8
+	case uint16:
+		return uint8(key.(uint16) & math.MaxUint8)
+	case uint32:
+		return uint8(key.(uint32) & math.MaxUint8)
+	case uint64:
+		return uint8(key.(uint64) & math.MaxUint8)
+	case uint:
+		return uint8(key.(uint) & math.MaxUint8)
+	case int8:
+		return uint8(key.(int8)) & math.MaxUint8
+	case int16:
+		return uint8(uint16(key.(int16)) & math.MaxUint8)
+	case int32:
+		return uint8(uint32(key.(int32)) & math.MaxUint8)
+	case int64:
+		return uint8(uint64(key.(int64)) & math.MaxUint8)
+	case int:
+		return uint8(uint(key.(int)) & math.MaxUint8)
+	}
+
+	return uint8(crc32.ChecksumIEEE([]byte(fmt.Sprintln(key))) & math.MaxUint8)
 }
 
-func (m *Map) Set(key string, value interface{}) {
-	exists := m.shardList[m.index(key)].set(key, value)
-	if !exists {
-		atomic.AddInt64(&m.length, 1)
+func (m *Map) Set(key interface{}, value interface{}) {
+	if exists := m.shardList[m.index(key)].set(key, value); !exists {
+		atomic.AddUint64(&m.length, 1)
 	}
 }
 
-func (m *Map) Get(key string) (value interface{}, exists bool) {
+func (m *Map) Get(key interface{}) (value interface{}, exists bool) {
 	return m.shardList[m.index(key)].get(key)
 }
 
-func (m *Map) Exists(key string) (exists bool) {
+func (m *Map) Exists(key interface{}) (exists bool) {
 	return m.shardList[m.index(key)].exists(key)
 }
 
-func (m *Map) Delete(key string) {
+func (m *Map) Delete(key interface{}) {
 	if exists := m.shardList[m.index(key)].delete(key); exists {
-		atomic.AddInt64(&m.length, -1)
+		atomic.AddUint64(&m.length, uint64(boot.Decr))
 	}
 }
 
-func (m *Map) Length() int64 {
-	return atomic.LoadInt64(&m.length)
+func (m *Map) Length() uint64 {
+	return atomic.LoadUint64(&m.length)
 }
 
 type shard struct {
 	mutex sync.RWMutex
-	items map[string]interface{}
+	items map[interface{}]interface{}
 }
 
-func (s *shard) set(key string, value interface{}) (exists bool) {
+func (s *shard) set(key interface{}, value interface{}) (exists bool) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -69,7 +99,7 @@ func (s *shard) set(key string, value interface{}) (exists bool) {
 	return
 }
 
-func (s *shard) exists(key string) (exists bool) {
+func (s *shard) exists(key interface{}) (exists bool) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -77,7 +107,7 @@ func (s *shard) exists(key string) (exists bool) {
 	return
 }
 
-func (s *shard) get(key string) (value interface{}, exists bool) {
+func (s *shard) get(key interface{}) (value interface{}, exists bool) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -85,7 +115,7 @@ func (s *shard) get(key string) (value interface{}, exists bool) {
 	return
 }
 
-func (s *shard) delete(key string) (exists bool) {
+func (s *shard) delete(key interface{}) (exists bool) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 

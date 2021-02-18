@@ -13,7 +13,7 @@ var (
 )
 
 type Config struct {
-	Boot []RedisOption `yaml:"boot" json:"boot"`
+	Boot []Option `yaml:"boot" json:"boot"`
 }
 
 func init() {
@@ -22,7 +22,7 @@ func init() {
 	boot.Yaml("app.yml", config)
 
 	//初始化redisGroup
-	group = NewGroup(config.Boot)
+	group = NewGroup(config.Boot, nil)
 }
 
 func TestGroup_Get(t *testing.T) {

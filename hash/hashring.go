@@ -10,12 +10,21 @@ import (
 
 var ErrNoServer = errors.New("no server")
 
-type Server interface {
+type Ring interface {
+	StoreServers(servers []CanHash)
+	Get(key []byte) (server CanHash, err error)
+	AddServer(server CanHash)
+	RemoveServer(server CanHash)
+	Length() int
+	Range(handler func(index int, server CanHash) (handled bool))
+}
+
+type CanHash interface {
 	HashCode() (hashValue uint32)
 }
 
 type Node struct {
-	server    Server
+	server    CanHash
 	hashValue uint32
 }
 
@@ -33,18 +42,20 @@ func (n NodeList) Swap(i, j int) {
 	n[i], n[j] = n[j], n[i]
 }
 
-type HashRing struct {
+type DefaultRing struct {
+	Ring
+
 	nodes NodeList
 	mutex sync.RWMutex
 }
 
-func NewHashRing(servers []Server) *HashRing {
-	ring := &HashRing{}
+func NewDefaultRing(servers []CanHash) *DefaultRing {
+	ring := &DefaultRing{}
 	ring.StoreServers(servers)
 	return ring
 }
 
-func (h *HashRing) StoreServers(servers []Server) {
+func (h *DefaultRing) StoreServers(servers []CanHash) {
 	h.mutex.Lock()
 	nodes := make(NodeList, len(servers), len(servers))
 
@@ -61,7 +72,7 @@ func (h *HashRing) StoreServers(servers []Server) {
 	h.mutex.Unlock()
 }
 
-func (h *HashRing) AddServer(server Server) {
+func (h *DefaultRing) AddServer(server CanHash) {
 	h.mutex.Lock()
 	h.nodes = append(h.nodes, Node{
 		server:    server,
@@ -71,7 +82,7 @@ func (h *HashRing) AddServer(server Server) {
 	h.mutex.Unlock()
 }
 
-func (h *HashRing) RemoveServer(server Server) {
+func (h *DefaultRing) RemoveServer(server CanHash) {
 	h.mutex.Lock()
 
 	value := server.HashCode()
@@ -92,7 +103,7 @@ func (h *HashRing) RemoveServer(server Server) {
 	h.mutex.Unlock()
 }
 
-func (h *HashRing) GetIndex(key []byte) (server Server, err error) {
+func (h *DefaultRing) Get(key []byte) (server CanHash, err error) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
@@ -124,13 +135,13 @@ func (h *HashRing) GetIndex(key []byte) (server Server, err error) {
 	return h.nodes[index].server, nil
 }
 
-func (h *HashRing) Length() int {
+func (h *DefaultRing) Length() int {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 	return len(h.nodes)
 }
 
-func (h *HashRing) Range(handler func(index int, server Server) (handled bool)) {
+func (h *DefaultRing) Range(handler func(index int, server CanHash) (handled bool)) {
 	h.mutex.RLock()
 	for index, _ := range h.nodes {
 		handler(index, h.nodes[index].server)

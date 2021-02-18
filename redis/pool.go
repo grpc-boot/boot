@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"hash/crc32"
 	"strings"
-	"sync"
 	"time"
 
 	redigo "github.com/garyburd/redigo/redis"
@@ -12,16 +11,7 @@ import (
 	"github.com/grpc-boot/boot/hash"
 )
 
-var (
-	//命令池
-	cmdListPool = &sync.Pool{
-		New: func() interface{} {
-			return make(Multi, 0, 8)
-		},
-	}
-)
-
-type RedisOption struct {
+type Option struct {
 	Host string `yaml:"host" json:"host"`
 	Port string `yaml:"port" json:"port"`
 	Auth string `yaml:"auth" json:"auth"`
@@ -40,12 +30,13 @@ type RedisOption struct {
 }
 
 type Pool struct {
-	hash.Server
+	hash.CanHash
+
 	id   []byte
 	pool *redigo.Pool
 }
 
-func NewPool(option *RedisOption) *Pool {
+func NewPool(option *Option) *Pool {
 	return &Pool{
 		id: []byte(fmt.Sprintf("%s:%s:%d", option.Host, option.Port, option.Db)),
 		pool: &redigo.Pool{
@@ -112,12 +103,9 @@ func (r *Redis) Send(cmd string, args ...interface{}) error {
 	return r.conn.Send(cmd, args...)
 }
 
+//region 1.0 String
 func (r *Redis) Get(key []byte) ([]byte, error) {
 	return redigo.Bytes(r.conn.Do("GET", key))
-}
-
-func (r *Redis) Del(keys ...interface{}) (int64, error) {
-	return redigo.Int64(r.conn.Do("DEL", keys...))
 }
 
 func (r *Redis) Set(key []byte, params ...interface{}) bool {
@@ -134,6 +122,12 @@ func (r *Redis) SetTimeout(key []byte, value interface{}, timeoutSecond int64) b
 	return strings.ToUpper(receive) == "OK"
 }
 
-func (r *Redis) Multi() Multi {
-	return acquireMulti()
+func (r *Redis) Del(keys ...interface{}) (int64, error) {
+	return redigo.Int64(r.conn.Do("DEL", keys...))
+}
+
+//endregion
+
+func (r *Redis) Multi() *Multi {
+	return multiGet()
 }

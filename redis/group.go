@@ -6,10 +6,10 @@ import (
 
 type Group struct {
 	size uint32
-	ring *hash.HashRing
+	ring hash.Ring
 }
 
-func NewGroup(options []RedisOption) *Group {
+func NewGroup(options []Option, ring hash.Ring) *Group {
 	poolSize := len(options)
 	if poolSize < 1 {
 		panic("redis options长度小于1")
@@ -19,18 +19,20 @@ func NewGroup(options []RedisOption) *Group {
 		size: uint32(poolSize),
 	}
 
-	serverList := make([]hash.Server, len(options), len(options))
+	serverList := make([]hash.CanHash, len(options), len(options))
 	for index := 0; index < poolSize; index++ {
 		serverList[index] = NewPool(&options[index])
 	}
 
-	group.ring = hash.NewHashRing(serverList)
+	if ring == nil {
+		group.ring = hash.NewDefaultRing(serverList)
+	}
 
 	return group
 }
 
 func (g *Group) Get(key []byte) (pool *Pool, err error) {
-	server, err := g.ring.GetIndex(key)
+	server, err := g.ring.Get(key)
 	if err == nil {
 		return server.(*Pool), nil
 	}

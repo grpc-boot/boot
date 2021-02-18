@@ -28,16 +28,16 @@ var (
 			return query
 		},
 	}
+
+	AcquireQuery = func() *Query {
+		return queryPool.Get().(*Query)
+	}
+
+	ReleaseQuery = func(query *Query) {
+		query = query.reset()
+		queryPool.Put(query)
+	}
 )
-
-func AcquireQuery() *Query {
-	return queryPool.Get().(*Query)
-}
-
-func ReleaseQuery(query *Query) {
-	query = query.reset()
-	queryPool.Put(query)
-}
 
 type Query struct {
 	table   string

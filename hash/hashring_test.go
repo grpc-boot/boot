@@ -21,11 +21,11 @@ var (
 )
 
 type Group struct {
-	ring *HashRing
+	ring *DefaultRing
 }
 
 type Db struct {
-	Server
+	CanHash
 	id []byte
 }
 
@@ -33,8 +33,10 @@ func (d *Db) HashCode() (hashValue uint32) {
 	return crc32.ChecksumIEEE(d.id)
 }
 
+// go test -bench=. -benchmem -v
+// BenchmarkHashRing_GetIndex-4    24148118                65.9 ns/op            16 B/op          1 allocs/op
 func BenchmarkHashRing_GetIndex(b *testing.B) {
-	serverList := make([]Server, 0, len(hostList))
+	serverList := make([]CanHash, 0, len(hostList))
 
 	for _, server := range hostList {
 		serverList = append(serverList, &Db{
@@ -42,12 +44,12 @@ func BenchmarkHashRing_GetIndex(b *testing.B) {
 		})
 	}
 
-	group.ring = NewHashRing(serverList)
+	group.ring = NewDefaultRing(serverList)
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, err := group.ring.GetIndex([]byte("Hello World"))
+			_, err := group.ring.Get([]byte("Hello World"))
 			if err != nil {
 				b.Fatal(err.Error())
 			}
