@@ -17,7 +17,7 @@ type Option struct {
 type Consumer struct {
 	consumer *librdkafka.Consumer
 	run      uint32
-	wg       *sync.WaitGroup
+	wg       sync.WaitGroup
 }
 
 func NewConsumer(option *Option) (consumer *Consumer, err error) {
@@ -31,6 +31,15 @@ func NewConsumer(option *Option) (consumer *Consumer, err error) {
 }
 
 func (c *Consumer) RunConsume(lockOsThread bool, handler func(topic string, msg []byte, err error)) {
+	old := atomic.LoadUint32(&c.run)
+	if old == 1 {
+		return
+	}
+	if !atomic.CompareAndSwapUint32(&c.run, old, 1) {
+		return
+	}
+	c.wg.Add(1)
+
 	go func() {
 		if lockOsThread {
 			runtime.LockOSThread()
@@ -48,9 +57,6 @@ func (c *Consumer) RunConsume(lockOsThread bool, handler func(topic string, msg 
 				log.Println("error:", err)
 			}
 		}()
-
-		atomic.StoreUint32(&c.run, 1)
-		c.wg.Add(1)
 
 		for {
 			topic, msg, err = c.ReadBytes(-1)
