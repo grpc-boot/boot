@@ -5,6 +5,8 @@ import "sync"
 var (
 	Decr int64 = -1
 
+	SetValue = struct{}{}
+
 	//参数池
 	argsPool = &sync.Pool{
 		New: func() interface{} {

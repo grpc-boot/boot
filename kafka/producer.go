@@ -2,10 +2,12 @@ package kafka
 
 import (
 	"context"
+	"errors"
 	"log"
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"github.com/grpc-boot/boot/atomic"
 
 	librdkafka "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
@@ -38,6 +40,7 @@ var (
 	BuildMsg = func(topic *string, msg []byte) (message *librdkafka.Message) {
 		message = msgGet()
 		message.TopicPartition.Topic = topic
+		message.TopicPartition.Partition = librdkafka.PartitionAny
 		message.Value = msg
 		message.Timestamp = time.Now()
 		message.TimestampType = librdkafka.TimestampCreateTime
@@ -45,38 +48,49 @@ var (
 	}
 )
 
+var (
+	ErrLocalTimeout      = errors.New("Local: Timed out")
+	ErrProducerHasClosed = errors.New("Local: Producer Has Closed")
+	ErrQueueFull         = errors.New("Local: Queue full")
+)
+
 type Producer struct {
-	successCount uint64
-	buffer       chan *librdkafka.Message
+	successCount atomic.Uint64
 	producer     *librdkafka.Producer
+	isClose      atomic.Bool
 }
 
 func NewProducer(option *Option) (producer *Producer, err error) {
 	var prod *librdkafka.Producer
-	prod, err = librdkafka.NewProducer(&option.Properties)
+	prod, err = librdkafka.NewProducer(convertProperties2ConfigMap(option.Properties))
 	if err != nil {
 		return nil, err
 	}
 
 	return &Producer{
 		producer: prod,
-		buffer:   prod.ProduceChannel(),
 	}, nil
 }
 
-func (p *Producer) ProduceByBuffer(msg *librdkafka.Message) {
-	p.buffer <- msg
-}
-
 func (p *Producer) Produce(msg *librdkafka.Message, deliveryChan chan librdkafka.Event) (err error) {
+	if p.isClose.Get() {
+		return ErrProducerHasClosed
+	}
+
 	return p.producer.Produce(msg, deliveryChan)
 }
 
 func (p *Producer) ProduceString(topic *string, msg string, deliveryChan chan librdkafka.Event) (err error) {
+	if p.isClose.Get() {
+		return ErrProducerHasClosed
+	}
 	return p.Produce(BuildMsg(topic, []byte(msg)), deliveryChan)
 }
 
 func (p *Producer) ProduceBytes(topic *string, msg []byte, deliveryChan chan librdkafka.Event) (err error) {
+	if p.isClose.Get() {
+		return ErrProducerHasClosed
+	}
 	return p.Produce(BuildMsg(topic, msg), deliveryChan)
 }
 
@@ -89,6 +103,10 @@ func (p *Producer) Purge(flags int) (err error) {
 }
 
 func (p *Producer) Begin() (err error) {
+	if p.isClose.Get() {
+		return ErrProducerHasClosed
+	}
+
 	return p.producer.BeginTransaction()
 }
 
@@ -97,14 +115,20 @@ func (p *Producer) Rollback(ctx context.Context) (err error) {
 }
 
 func (p *Producer) Commit(ctx context.Context) (err error) {
+	if p.isClose.Get() {
+		return ErrProducerHasClosed
+	}
 	return p.producer.CommitTransaction(ctx)
 }
 
 func (p *Producer) InitTrans(ctx context.Context) (err error) {
+	if p.isClose.Get() {
+		return ErrProducerHasClosed
+	}
 	return p.producer.InitTransactions(ctx)
 }
 
-func (p *Producer) ErrorHandler(handler func(msg *librdkafka.Message, err error)) {
+func (p *Producer) ErrorHandler(deliveryChan chan librdkafka.Event, handler func(msg *librdkafka.Message, err error)) {
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
@@ -112,20 +136,49 @@ func (p *Producer) ErrorHandler(handler func(msg *librdkafka.Message, err error)
 			}
 		}()
 
-		for e := range p.producer.Events() {
+		if deliveryChan == nil {
+			deliveryChan = p.producer.Events()
+		}
+
+		for {
+			e, hasOpen := <-deliveryChan
+			if !hasOpen {
+				break
+			}
+
 			switch ev := e.(type) {
 			case *librdkafka.Message:
-				if ev.TopicPartition.Error != nil {
-					handler(ev, ev.TopicPartition.Error)
-				} else {
-					atomic.AddUint64(&p.successCount, 1)
+				if ev.TopicPartition.Error == nil {
+					p.successCount.Incr(1)
 					msgPut(ev)
+					continue
+				}
+
+				switch ev.TopicPartition.Error.Error() {
+				case ErrQueueFull.Error():
+					handler(ev, ErrQueueFull)
+				case ErrLocalTimeout.Error():
+					handler(ev, ErrLocalTimeout)
+				case ErrQueueFull.Error():
+					handler(ev, ErrQueueFull)
+				default:
+					handler(ev, ev.TopicPartition.Error)
 				}
 			}
 		}
 	}()
 }
 
-func (p *Producer) Close() {
+func (p *Producer) Close(timeoutMs int) {
+	p.isClose.Set(true)
+	p.producer.Flush(timeoutMs)
 	p.producer.Close()
+}
+
+func (p *Producer) SuccessCount() uint64 {
+	return p.successCount.Get()
+}
+
+func (p *Producer) CloseIn() {
+	p.isClose.Set(true)
 }

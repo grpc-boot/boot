@@ -4,25 +4,40 @@ import (
 	"log"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"github.com/grpc-boot/boot/atomic"
 
 	librdkafka "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
 type Option struct {
-	Properties librdkafka.ConfigMap `yaml:"properties" json:"properties"`
+	Properties map[string]interface{} `yaml:"properties" json:"properties"`
+}
+
+func convertProperties2ConfigMap(properties map[string]interface{}) *librdkafka.ConfigMap {
+	configMap := &librdkafka.ConfigMap{}
+	for property, value := range properties {
+		//json解析的时候，数字默认解析为float64
+		if val, ok := value.(float64); ok {
+			_ = configMap.SetKey(property, int(val))
+			continue
+		}
+
+		_ = configMap.SetKey(property, value)
+	}
+	return configMap
 }
 
 type Consumer struct {
 	consumer *librdkafka.Consumer
-	run      uint32
+	run      atomic.Acquire
 	wg       sync.WaitGroup
 }
 
 func NewConsumer(option *Option) (consumer *Consumer, err error) {
 	var cons *librdkafka.Consumer
-	cons, err = librdkafka.NewConsumer(&option.Properties)
+	cons, err = librdkafka.NewConsumer(convertProperties2ConfigMap(option.Properties))
 	if err != nil {
 		return nil, err
 	}
@@ -30,12 +45,8 @@ func NewConsumer(option *Option) (consumer *Consumer, err error) {
 	return &Consumer{consumer: cons}, nil
 }
 
-func (c *Consumer) RunConsume(lockOsThread bool, handler func(topic string, msg []byte, err error)) {
-	old := atomic.LoadUint32(&c.run)
-	if old == 1 {
-		return
-	}
-	if !atomic.CompareAndSwapUint32(&c.run, old, 1) {
+func (c *Consumer) RunConsume(lockOsThread bool, timeout time.Duration, handler func(topic string, msg []byte, err error)) {
+	if !c.run.Acquire() {
 		return
 	}
 	c.wg.Add(1)
@@ -59,10 +70,10 @@ func (c *Consumer) RunConsume(lockOsThread bool, handler func(topic string, msg 
 		}()
 
 		for {
-			topic, msg, err = c.ReadBytes(-1)
+			topic, msg, err = c.ReadBytes(timeout)
 			handler(topic, msg, err)
 
-			if atomic.LoadUint32(&c.run) == 0 {
+			if c.run.IsRelease() {
 				break
 			}
 		}
@@ -71,7 +82,7 @@ func (c *Consumer) RunConsume(lockOsThread bool, handler func(topic string, msg 
 }
 
 func (c *Consumer) StopConsume() {
-	atomic.StoreUint32(&c.run, 0)
+	c.run.Release()
 	c.wg.Wait()
 }
 
