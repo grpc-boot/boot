@@ -20,7 +20,7 @@ var (
 			"topics":["browser_test_topic"], 
 			"producer":{
 				"properties":{
-					"bootstrap.servers":"127.0.0.1:39092",
+					"bootstrap.servers":"10.202.4.120:39092",
 					"go.produce.channel.size": 40960,
 					"queue.buffering.max.messages": 409600,
 					"queue.buffering.max.ms": 5000,
