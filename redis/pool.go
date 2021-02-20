@@ -3,6 +3,7 @@ package redis
 import (
 	"fmt"
 	"hash/crc32"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,7 +38,7 @@ type Pool struct {
 	pool *redigo.Pool
 }
 
-func NewPool(option *Option) *Pool {
+func NewPool(option *Option) (pool *Pool) {
 	return &Pool{
 		id: []byte(fmt.Sprintf("%s:%s:%d", option.Host, option.Port, option.Db)),
 		pool: &redigo.Pool{
@@ -77,7 +78,7 @@ func (p *Pool) HashCode() (hashValue uint32) {
 	return crc32.ChecksumIEEE(p.id)
 }
 
-func (p *Pool) Get() *Redis {
+func (p *Pool) Get() (redis *Redis) {
 	return &Redis{
 		conn: p.pool.Get(),
 	}
@@ -92,39 +93,123 @@ type Redis struct {
 }
 
 //释放连接到连接池，并非真正的close
-func (r *Redis) Close() error {
+func (r *Redis) Close() (err error) {
 	return r.conn.Close()
 }
 
-func (r *Redis) Do(cmd string, args ...interface{}) (interface{}, error) {
+func (r *Redis) Do(cmd string, args ...interface{}) (reply interface{}, err error) {
 	return r.conn.Do(cmd, args...)
 }
 
-func (r *Redis) Send(cmd string, args ...interface{}) error {
+func (r *Redis) Send(cmd string, args ...interface{}) (err error) {
 	return r.conn.Send(cmd, args...)
 }
 
-//region 1.0 String
-func (r *Redis) Get(key []byte) ([]byte, error) {
+//region 1.0 Key
+func (r *Redis) Exists(key []byte) (exists bool, err error) {
+	var val int
+	val, err = redigo.Int(r.conn.Do("EXISTS", key))
+	return val == boot.SUCCESS, err
+}
+
+func (r *Redis) Expire(key []byte, timeoutSecond int64) (ok bool, err error) {
+	_, err = redigo.Int(r.conn.Do("EXPIRE", key, timeoutSecond))
+	return err == nil, err
+}
+
+func (r *Redis) ExpireAt(key []byte, unixTimestamp int64) (ok bool, err error) {
+	_, err = redigo.Int(r.conn.Do("EXPIREAT", key, unixTimestamp))
+	return err == nil, err
+}
+
+func (r *Redis) Ttl(key []byte) (timeout int64, err error) {
+	return redigo.Int64(r.conn.Do("TTL", key))
+}
+
+func (r *Redis) Persist(key []byte) (ok bool, err error) {
+	_, err = redigo.Int(r.conn.Do("PERSIST", key))
+	return err == nil, err
+}
+
+func (r *Redis) Type(key []byte) (tp string, err error) {
+	return redigo.String(r.conn.Do("TYPE", key))
+}
+
+func (r *Redis) ScanBytes(cursor int64, pattern string, count int64) (nextCursor int64, keys [][]byte, err error) {
+	var reply interface{}
+	reply, err = r.conn.Do("SCAN", cursor, "MATCH", pattern, "COUNT", count)
+	if err != nil {
+		return
+	}
+
+	if values, ok := reply.([]interface{}); ok && len(values) == 2 {
+		nextCursor, _ = strconv.ParseInt(string(values[0].([]byte)), 10, 64)
+		items := values[1].([]interface{})
+		keys = make([][]byte, len(items), len(items))
+		for index, _ := range items {
+			keys[index] = items[index].([]byte)
+		}
+	}
+
+	return
+}
+
+func (r *Redis) ScanStrings(cursor int64, pattern string, count int64) (nextCursor int64, keys []string, err error) {
+	var reply interface{}
+	reply, err = r.conn.Do("SCAN", cursor, "MATCH", pattern, "COUNT", count)
+	if err != nil {
+		return
+	}
+
+	if values, ok := reply.([]interface{}); ok && len(values) == 2 {
+		nextCursor, _ = strconv.ParseInt(string(values[0].([]byte)), 10, 64)
+		items := values[1].([]interface{})
+		keys = make([]string, len(items), len(items))
+		for index, _ := range items {
+			keys[index] = string(items[index].([]byte))
+		}
+	}
+
+	return
+}
+
+func (r *Redis) Del(keys ...interface{}) (successCount int64, err error) {
+	return redigo.Int64(r.conn.Do("DEL", keys...))
+}
+
+//endregion
+
+//region 1.1 String
+func (r *Redis) Get(key []byte) (value []byte, err error) {
 	return redigo.Bytes(r.conn.Do("GET", key))
 }
 
-func (r *Redis) Set(key []byte, params ...interface{}) bool {
+func (r *Redis) GetString(key []byte) (value string, err error) {
+	return redigo.String(r.conn.Do("GET", key))
+}
+
+func (r *Redis) GetInt64(key []byte) (value int64, err error) {
+	return redigo.Int64(r.conn.Do("GET", key))
+}
+
+func (r *Redis) GetInt(key []byte) (value int, err error) {
+	return redigo.Int(r.conn.Do("GET", key))
+}
+
+func (r *Redis) Set(key []byte, params ...interface{}) (ok bool, err error) {
 	args := boot.AcquireArgs()
 	args = append(args, key)
 	args = append(args, params...)
-	receive, _ := redigo.String(r.conn.Do("SET", args...))
+	var receive string
+	receive, err = redigo.String(r.conn.Do("SET", args...))
 	boot.ReleaseArgs(args)
-	return strings.ToUpper(receive) == "OK"
+	return strings.ToUpper(receive) == boot.OK, err
 }
 
-func (r *Redis) SetTimeout(key []byte, value interface{}, timeoutSecond int64) bool {
-	receive, _ := redigo.String(r.conn.Do("SETEX", key, timeoutSecond, value))
-	return strings.ToUpper(receive) == "OK"
-}
-
-func (r *Redis) Del(keys ...interface{}) (int64, error) {
-	return redigo.Int64(r.conn.Do("DEL", keys...))
+func (r *Redis) SetTimeout(key []byte, value interface{}, timeoutSecond int64) (ok bool, err error) {
+	var receive string
+	receive, err = redigo.String(r.conn.Do("SETEX", key, timeoutSecond, value))
+	return strings.ToUpper(receive) == boot.OK, err
 }
 
 //endregion

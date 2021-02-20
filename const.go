@@ -1,3 +1,9 @@
 package boot
 
-const ()
+const (
+	OK = "OK"
+)
+
+const (
+	SUCCESS = 1
+)

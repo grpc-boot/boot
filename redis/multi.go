@@ -5,7 +5,7 @@ import "sync"
 var (
 	multiPool = &sync.Pool{
 		New: func() interface{} {
-			return &Multi{cmdList: make([]Cmd, 0, 8)}
+			return &Multi{cmdList: make([]command, 0, 8)}
 		},
 	}
 
@@ -20,29 +20,25 @@ var (
 )
 
 type Multi struct {
-	cmdList []Cmd
+	cmdList []command
 }
 
-type Cmd struct {
+type command struct {
 	cmd  string
 	key  []byte
 	args []interface{}
 }
 
-func NewCmd(cmd string, args ...interface{}) Cmd {
-	return Cmd{
+func (m *Multi) Send(cmd string, args ...interface{}) (multi *Multi) {
+	m.cmdList = append(m.cmdList, command{
 		cmd:  cmd,
 		args: args,
-	}
-}
-
-func (m *Multi) Send(cmd string, args ...interface{}) *Multi {
-	m.cmdList = append(m.cmdList, NewCmd(cmd, args...))
+	})
 	return m
 }
 
-func (m *Multi) ExecMulti(redis *Redis) ([]interface{}, error) {
-	err := redis.conn.Send("MULTI")
+func (m *Multi) ExecMulti(redis *Redis) (results []interface{}, err error) {
+	err = redis.conn.Send("MULTI")
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +50,8 @@ func (m *Multi) ExecMulti(redis *Redis) ([]interface{}, error) {
 		}
 	}
 
-	reply, err := redis.conn.Do("EXEC")
+	var reply interface{}
+	reply, err = redis.conn.Do("EXEC")
 	multiPut(m)
 	if err != nil {
 		return nil, err
@@ -63,11 +60,12 @@ func (m *Multi) ExecMulti(redis *Redis) ([]interface{}, error) {
 	return reply.([]interface{}), nil
 }
 
-func (m *Multi) ExecPipeline(redis *Redis) ([]interface{}, error) {
+func (m *Multi) ExecPipeline(redis *Redis) (results []interface{}, err error) {
 	for _, cmd := range m.cmdList {
 		_ = redis.conn.Send(cmd.cmd, cmd.args...)
 	}
-	reply, err := redis.conn.Do("")
+	var reply interface{}
+	reply, err = redis.conn.Do("")
 	multiPut(m)
 	if err != nil {
 		return nil, err

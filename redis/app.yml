@@ -1,5 +1,5 @@
 boot:
-  - host: 'localhost'
+  - host: '10.16.49.69'
     port: 6379
     auth: ''
     db: 1
@@ -10,8 +10,8 @@ boot:
     readTimeout: 200
     writeTimeout: 500
 
-  - host: '127.0.0.1'
-    port: 6380
+  - host: '10.16.49.69'
+    port: 6379
     auth: ''
     db: 1
     maxConnLifetime: 600

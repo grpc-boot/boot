@@ -38,3 +38,18 @@ func (g *Group) Get(key []byte) (pool *Pool, err error) {
 	}
 	return nil, err
 }
+
+func (g *Group) Index(i int) (pool *Pool, err error) {
+	if i >= g.ring.Length() {
+		return nil, hash.ErrNoServer
+	}
+
+	g.ring.Range(func(index int, server hash.CanHash) (handled bool) {
+		if index == i {
+			pool = server.(*Pool)
+			return true
+		}
+		return false
+	})
+	return
+}

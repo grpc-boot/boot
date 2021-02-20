@@ -144,7 +144,10 @@ func (h *DefaultRing) Length() int {
 func (h *DefaultRing) Range(handler func(index int, server CanHash) (handled bool)) {
 	h.mutex.RLock()
 	for index, _ := range h.nodes {
-		handler(index, h.nodes[index].server)
+		//标记已处理
+		if handler(index, h.nodes[index].server) {
+			break
+		}
 	}
 	h.mutex.RUnlock()
 }
