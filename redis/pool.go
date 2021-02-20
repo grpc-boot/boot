@@ -135,7 +135,7 @@ func (r *Redis) Type(key []byte) (tp string, err error) {
 	return redigo.String(r.conn.Do("TYPE", key))
 }
 
-func (r *Redis) ScanBytes(cursor int64, pattern string, count int64) (nextCursor int64, keys [][]byte, err error) {
+func (r *Redis) Scan(cursor int64, pattern string, count int64) (nextCursor int64, keys [][]byte, err error) {
 	var reply interface{}
 	reply, err = r.conn.Do("SCAN", cursor, "MATCH", pattern, "COUNT", count)
 	if err != nil {
@@ -210,6 +210,81 @@ func (r *Redis) SetTimeout(key []byte, value interface{}, timeoutSecond int64) (
 	var receive string
 	receive, err = redigo.String(r.conn.Do("SETEX", key, timeoutSecond, value))
 	return strings.ToUpper(receive) == boot.OK, err
+}
+
+//endregion
+
+//region 1.2 Hash
+func (r *Redis) HSet(key []byte, field []byte, value interface{}) (exists bool, err error) {
+	var val int
+	val, err = redigo.Int(r.conn.Do("HSET", key, field, value))
+	if err != nil {
+		return false, err
+	}
+
+	return val == boot.SUCCESS, err
+}
+
+func (r *Redis) HGet(key []byte, field []byte) (value []byte, err error) {
+	return redigo.Bytes(r.conn.Do("HGET", key, field))
+}
+
+func (r *Redis) HGetString(key []byte, field []byte) (value string, err error) {
+	return redigo.String(r.conn.Do("HGET", key, field))
+}
+
+func (r *Redis) HGetInt(key []byte, field []byte) (value int, err error) {
+	return redigo.Int(r.conn.Do("HGET", key, field))
+}
+
+func (r *Redis) HGetInt64(key []byte, field []byte) (value int64, err error) {
+	return redigo.Int64(r.conn.Do("HGET", key, field))
+}
+
+func (r *Redis) HMSet(key []byte, fieldValues map[string]interface{}) (ok bool, err error) {
+	args := make([]interface{}, len(fieldValues)*2+1, len(fieldValues)*2+1)
+	start := 0
+	args[start] = key
+	for field, _ := range fieldValues {
+		start++
+		args[start] = field
+		start++
+		args[start] = fieldValues[field]
+	}
+	var receive string
+	receive, err = redigo.String(r.conn.Do("HMSET", args...))
+	return receive == boot.OK, err
+}
+
+func (r *Redis) HMGet(key []byte, fields []string) (values []string, err error) {
+	args := make([]interface{}, len(fields)+1, len(fields)+1)
+	start := 0
+	args[start] = key
+	for start = 1; start <= len(fields); start++ {
+		args[start] = fields[start]
+	}
+	return redigo.Strings(r.conn.Do("HMGET", args...))
+}
+
+func (r *Redis) HMGetMap(key []byte, fields []string) (fieldValues map[string]string, err error) {
+	args := make([]interface{}, len(fields)+1, len(fields)+1)
+	start := 0
+	args[start] = key
+	for start = 1; start <= len(fields); start++ {
+		args[start] = fields[start]
+	}
+	var values []string
+	values, err = redigo.Strings(r.conn.Do("HMGET", args...))
+	if err != nil {
+		return nil, err
+	}
+
+	fieldValues = make(map[string]string, len(fields))
+	for index, _ := range values {
+		fieldValues[fields[index]] = values[index]
+	}
+
+	return
 }
 
 //endregion
