@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"log"
 	"time"
 
-	"github.com/grpc-boot/boot"
+	"github.com/grpc-boot/boot/grace"
 	"github.com/grpc-boot/boot/kafka"
 )
 
@@ -17,7 +17,7 @@ var (
 			"topics":["browser_test_topic"], 
 			"consumer":{
 				"properties":{
-					"bootstrap.servers":"10.202.4.120:39092", 
+					"bootstrap.servers":"127.0.0.1:39092", 
 					"group.id":"myGroup", 
 					"auto.offset.reset":"earliest"
 				}
@@ -50,16 +50,17 @@ func main() {
 	consumer.RunConsume(true, time.Second, func(topic string, msg []byte, err error) {
 		if err != nil {
 			if err.Error() != kafka.ErrLocalTimeout.Error() {
-				fmt.Println(err.Error())
+				log.Println(err.Error())
 			}
 			return
 		}
 
-		fmt.Printf("topic:%s, msg: %s\n", topic, string(msg))
+		log.Printf("topic:%s, msg: %s\n", topic, string(msg))
 	})
 
-	boot.Wait(time.Second*5, func(ctx context.Context) {
+	hold := grace.NewHold(func(ctx context.Context) (err error) {
 		consumer.StopConsume()
-		_ = consumer.Close()
+		return consumer.Close()
 	})
+	hold.Start()
 }

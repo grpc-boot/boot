@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"github.com/grpc-boot/boot/grace"
+	"log"
 	"time"
 
-	"github.com/grpc-boot/boot"
 	"github.com/grpc-boot/boot/kafka"
 
 	librdkafka "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
@@ -20,7 +20,7 @@ var (
 			"topics":["browser_test_topic"], 
 			"producer":{
 				"properties":{
-					"bootstrap.servers":"10.202.4.120:39092",
+					"bootstrap.servers":"127.0.0.1:39092",
 					"go.produce.channel.size": 40960,
 					"queue.buffering.max.messages": 409600,
 					"queue.buffering.max.ms": 5000,
@@ -60,7 +60,7 @@ func main() {
 			//重试
 			_ = producer.Produce(msg, dEventChan)
 		default:
-			fmt.Println(err.Error())
+			log.Println(err.Error())
 		}
 	})
 
@@ -75,24 +75,26 @@ func main() {
 
 			switch err.Error() {
 			case kafka.ErrProducerHasClosed.Error():
-				fmt.Println("closed:", index)
+				log.Println("closed:", index)
 				return
 			case kafka.ErrQueueFull.Error():
-				fmt.Println("full:", index)
+				log.Println("full:", index)
 				return
 			case kafka.ErrLocalTimeout.Error():
 				continue
 			default:
-				fmt.Println(err.Error())
+				log.Println(err.Error())
 			}
 		}
 	}()
 
-	boot.Wait(time.Second*5, func(ctx context.Context) {
+	hold := grace.NewHold(func(ctx context.Context) (err error) {
 		producer.CloseIn()
 		producer.Close(15 * 1000)
 		close(dEventChan)
 
-		fmt.Println("cost ", time.Now().Sub(start), " produce success:", producer.SuccessCount())
+		log.Println("cost ", time.Now().Sub(start), " produce success:", producer.SuccessCount())
+		return
 	})
+	hold.Start()
 }
