@@ -2,13 +2,13 @@ package container
 
 import (
 	"fmt"
-	"github.com/grpc-boot/boot/hash"
 	"hash/crc32"
 	"math"
 	"sync"
 	"sync/atomic"
 
 	"github.com/grpc-boot/boot"
+	"github.com/grpc-boot/boot/hash"
 )
 
 type Map struct {

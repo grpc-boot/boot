@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
-
 	"github.com/grpc-boot/boot"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type PoolOption struct {

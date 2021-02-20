@@ -1,6 +1,6 @@
 package container
 
-var itemExists = struct{}{}
+import "github.com/grpc-boot/boot"
 
 //非线程安全版本，如需要线程安全版本，需要自行加锁
 //注意不同类型的同一个值是不同的item，如a int64 = 8 与 b int32 = 8 不是同一个值
@@ -18,7 +18,7 @@ func NewSet(values ...interface{}) *Set {
 
 func (set *Set) Add(items ...interface{}) {
 	for _, item := range items {
-		set.items[item] = itemExists
+		set.items[item] = boot.SetValue
 	}
 }
 

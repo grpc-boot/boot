@@ -1,10 +1,11 @@
 package hash
 
 import (
-	"github.com/grpc-boot/boot/atomic"
 	"hash/crc32"
 	"strconv"
 	"testing"
+
+	"github.com/grpc-boot/boot/atomic"
 )
 
 var (

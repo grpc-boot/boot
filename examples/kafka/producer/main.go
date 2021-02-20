@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"github.com/grpc-boot/boot/grace"
 	"log"
 	"time"
 
+	"github.com/grpc-boot/boot/grace"
 	"github.com/grpc-boot/boot/kafka"
 
 	librdkafka "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
