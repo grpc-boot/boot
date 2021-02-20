@@ -112,7 +112,7 @@ func (h *DefaultRing) Get(key []byte) (server CanHash, err error) {
 		return nil, ErrNoServer
 	}
 
-	if length < 1 {
+	if length < 2 {
 		return h.nodes[0].server, nil
 	}
 

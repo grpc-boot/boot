@@ -1,7 +1,9 @@
 package hash
 
 import (
+	"github.com/grpc-boot/boot/atomic"
 	"hash/crc32"
+	"strconv"
 	"testing"
 )
 
@@ -45,11 +47,12 @@ func BenchmarkHashRing_GetIndex(b *testing.B) {
 	}
 
 	group.ring = NewDefaultRing(serverList)
+	var val atomic.Uint64
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, err := group.ring.Get([]byte("Hello World"))
+			_, err := group.ring.Get([]byte(strconv.FormatUint(val.Incr(1), 10)))
 			if err != nil {
 				b.Fatal(err.Error())
 			}

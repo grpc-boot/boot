@@ -6,9 +6,10 @@ import (
 	"strings"
 	"time"
 
-	redigo "github.com/garyburd/redigo/redis"
 	"github.com/grpc-boot/boot"
 	"github.com/grpc-boot/boot/hash"
+
+	redigo "github.com/garyburd/redigo/redis"
 )
 
 type Option struct {
