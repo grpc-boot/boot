@@ -3,6 +3,7 @@ package grace
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -20,47 +21,81 @@ var (
 	ErrGetListenerFdFailed = errors.New("get listener fd failed")
 )
 
-type Server struct {
-	signalChan chan os.Signal
-	listener   net.Listener
-	port       string
+type Option struct {
+	Addr   string `yaml:"addr" json:"addr"`
+	Server Server
 }
 
-func NewServer(port string) (server *Server, err error) {
+type Server interface {
+	Serve(l net.Listener) error
+	Shutdown(ctx context.Context) error
+}
+
+type TcpServer struct {
+	signalChan chan os.Signal
+	clearChan  chan bool
+	listener   net.Listener
+	server     Server
+}
+
+func NewTcpServer(option *Option) (server *TcpServer, err error) {
 	var listener net.Listener
-	listener, err = net.Listen("tcp", ":"+port)
+	listener, err = net.Listen("tcp", option.Addr)
 	if err != nil {
 		return nil, err
 	}
 
-	server = &Server{
+	server = &TcpServer{
 		signalChan: make(chan os.Signal, 1),
+		clearChan:  make(chan bool, 1),
 		listener:   listener,
-		port:       port,
+		server:     option.Server,
 	}
 	return
 }
 
-func (s *Server) Listener() net.Listener {
-	return s.listener
+func (ts *TcpServer) Listener() net.Listener {
+	return ts.listener
 }
 
-func (s *Server) Serve(envList []string, timeout time.Duration, shutdown func(ctx context.Context)) {
-	cleanupDone := make(chan bool)
+func (ts *TcpServer) startServe(l net.Listener) {
+	ts.listener = l
+	go func() {
+		if err := ts.server.Serve(ts.listener); err != nil {
+			log.Println("error:", err.Error())
+		}
+	}()
+}
+
+func (ts *TcpServer) shutdown() (err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	return ts.server.Shutdown(ctx)
+}
+
+func (ts *TcpServer) Serve(envList []string) {
+	ts.startServe(ts.listener)
+	log.Println("start")
+
 	go func() {
 		for {
-			signal.Notify(s.signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-			sig := <-s.signalChan
+			signal.Notify(ts.signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+			sig := <-ts.signalChan
 			switch sig {
 			case syscall.SIGINT, syscall.SIGTERM:
-				cleanupDone <- true
+				fmt.Println("INT")
+				ts.clearChan <- true
 			case syscall.SIGHUP:
+				fmt.Println("HUP")
 				listener, _, err := Fork(envList)
 				if err != nil {
 					log.Println("error:", err.Error())
 					continue
 				}
-				s.listener = listener
+
+				ts.startServe(listener)
+				log.Println("grace")
+
 				err = StopOldProcess()
 				if err != nil {
 					log.Println("error:", err.Error())
@@ -68,18 +103,19 @@ func (s *Server) Serve(envList []string, timeout time.Duration, shutdown func(ct
 			}
 		}
 	}()
-	<-cleanupDone
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	shutdown(ctx)
+	fmt.Println("clear")
+	<-ts.clearChan
+	if err := ts.shutdown(); err != nil {
+		log.Println("error:", err.Error())
+	}
 }
 
-func (s *Server) Wait(timeout time.Duration, shutdown func(ctx context.Context)) {
+func (ts *TcpServer) Wait() {
 	cleanupDone := make(chan bool)
 	go func() {
 		for {
-			signal.Notify(s.signalChan, syscall.SIGINT, syscall.SIGTERM)
-			sig := <-s.signalChan
+			signal.Notify(ts.signalChan, syscall.SIGINT, syscall.SIGTERM)
+			sig := <-ts.signalChan
 			switch sig {
 			case syscall.SIGINT, syscall.SIGTERM:
 				cleanupDone <- true
@@ -87,9 +123,9 @@ func (s *Server) Wait(timeout time.Duration, shutdown func(ctx context.Context))
 		}
 	}()
 	<-cleanupDone
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	shutdown(ctx)
+	if err := ts.shutdown(); err != nil {
+		log.Println("error:", err.Error())
+	}
 }
 
 func Fork(envList []string) (listener net.Listener, process *os.Process, err error) {
