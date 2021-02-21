@@ -3,29 +3,23 @@ package atomic
 import (
 	"sync/atomic"
 	"unsafe"
+
+	"github.com/grpc-boot/boot"
 )
 
-type Node struct {
-	value interface{}
-}
-
-func NewNode(value interface{}) *Node {
-	return &Node{value: value}
-}
-
-func Get(p *unsafe.Pointer) (n *Node) {
-	return (*Node)(atomic.LoadPointer(p))
+func Get(p *unsafe.Pointer) (n *boot.Node) {
+	return (*boot.Node)(atomic.LoadPointer(p))
 }
 
 func SetValue(p *unsafe.Pointer, value interface{}) {
-	node := NewNode(value)
+	node := boot.NewNode(value)
 	atomic.StorePointer(p, unsafe.Pointer(node))
 }
 
-func Set(p *unsafe.Pointer, node *Node) {
+func Set(p *unsafe.Pointer, node *boot.Node) {
 	atomic.StorePointer(p, unsafe.Pointer(node))
 }
 
-func Cas(p *unsafe.Pointer, old, new *Node) bool {
+func Cas(p *unsafe.Pointer, old, new *boot.Node) bool {
 	return atomic.CompareAndSwapPointer(p, unsafe.Pointer(old), unsafe.Pointer(new))
 }

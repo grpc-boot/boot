@@ -1,6 +1,7 @@
 package container
 
 import (
+	"github.com/grpc-boot/boot/atomic"
 	"hash/crc32"
 	"testing"
 	"time"
@@ -147,4 +148,16 @@ func BenchmarkMap_Get(b *testing.B) {
 	for index := 0; index < b.N; index++ {
 		m.Get(time.Now().UnixNano())
 	}
+}
+
+func BenchmarkLocklessQueue_Push(b *testing.B) {
+	queue := NewLocklessQueue()
+	var val atomic.Uint64
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			queue.Push(val.Incr(1))
+		}
+	})
 }

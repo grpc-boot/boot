@@ -3,7 +3,7 @@ package boot
 import "sync"
 
 var (
-	Decr int64 = -1
+	Decr = -1
 
 	SetValue = struct{}{}
 
