@@ -1,14 +1,18 @@
 package epoll
 
-type Reactor struct {
+import (
+	"github.com/grpc-boot/boot/container"
+)
+
+type Manager struct {
 	eventLoops  []EventLoop
-	connections *ConnectionMap
+	connections *container.Map
 }
 
-func NewManager(max int) *Reactor {
-	manager := &Reactor{
+func NewManager(max int) *Manager {
+	manager := &Manager{
 		eventLoops:  make([]EventLoop, max, max),
-		connections: NewConnectionMap(1),
+		connections: container.NewMap(),
 	}
 
 	for index := 0; index < max; index++ {
@@ -22,6 +26,6 @@ func NewManager(max int) *Reactor {
 	return manager
 }
 
-func (m *Reactor) Start() {
-
+func (m *Manager) TotalConnections() (count uint64) {
+	return m.connections.Length()
 }

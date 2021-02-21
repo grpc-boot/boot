@@ -1,5 +1,7 @@
 package epoll
 
+import "github.com/grpc-boot/boot/container"
+
 const (
 	EventRead  = 1 << 1
 	EventWrite = 1 << 2
@@ -18,7 +20,7 @@ type eventLoop struct {
 	EventLoop
 
 	poller      *Epoll
-	connections *ConnectionMap
+	connections *container.Map
 }
 
 func (el *eventLoop) Accept(fd int) (err error) {
@@ -27,12 +29,13 @@ func (el *eventLoop) Accept(fd int) (err error) {
 	}
 
 	conn := newConnection(fd)
-	el.connections.Add(conn)
+	el.connections.Set(fd, conn)
 
 	return nil
 }
 
 func (el *eventLoop) Read(conn *Connection) (err error) {
+	conn.Access()
 	return nil
 }
 
@@ -43,13 +46,13 @@ func (el *eventLoop) Write(conn *Connection) (err error) {
 func (el *eventLoop) Handler(fd int, event uint8) (err error) {
 	if conn, exists := el.connections.Get(fd); exists {
 		if event&EventRead == EventRead {
-			if err = el.Read(conn); err != nil {
+			if err = el.Read(conn.(*Connection)); err != nil {
 				return err
 			}
 		}
 
 		if event&EventWrite == EventWrite {
-			if err = el.Write(conn); err != nil {
+			if err = el.Write(conn.(*Connection)); err != nil {
 				return err
 			}
 		}
