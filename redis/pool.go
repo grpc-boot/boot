@@ -109,7 +109,7 @@ func (r *Redis) Send(cmd string, args ...interface{}) (err error) {
 func (r *Redis) Exists(key []byte) (exists bool, err error) {
 	var val int
 	val, err = redigo.Int(r.conn.Do("EXISTS", key))
-	return val == boot.SUCCESS, err
+	return val == boot.Success, err
 }
 
 func (r *Redis) Expire(key []byte, timeoutSecond int64) (ok bool, err error) {
@@ -203,13 +203,13 @@ func (r *Redis) Set(key []byte, params ...interface{}) (ok bool, err error) {
 	var receive string
 	receive, err = redigo.String(r.conn.Do("SET", args...))
 	boot.ReleaseArgs(args)
-	return strings.ToUpper(receive) == boot.OK, err
+	return strings.ToUpper(receive) == boot.Ok, err
 }
 
 func (r *Redis) SetTimeout(key []byte, value interface{}, timeoutSecond int64) (ok bool, err error) {
 	var receive string
 	receive, err = redigo.String(r.conn.Do("SETEX", key, timeoutSecond, value))
-	return strings.ToUpper(receive) == boot.OK, err
+	return strings.ToUpper(receive) == boot.Ok, err
 }
 
 func (r *Redis) Strlen(key []byte) (length int, err error) {
@@ -219,7 +219,7 @@ func (r *Redis) Strlen(key []byte) (length int, err error) {
 //endregion
 
 //region 1.2 Bit
-func (r *Redis) SetRange(key []byte, offset int64, value []byte) (length int, err error) {
+func (r *Redis) SetRange(key []byte, offset int, value []byte) (length int, err error) {
 	return redigo.Int(r.conn.Do("SETRANGE", key, offset, value))
 }
 
@@ -246,7 +246,7 @@ func (r *Redis) HSet(key []byte, field []byte, value interface{}) (exists bool, 
 		return false, err
 	}
 
-	return val == boot.SUCCESS, err
+	return val == boot.Success, err
 }
 
 func (r *Redis) HGet(key []byte, field []byte) (value []byte, err error) {
@@ -277,7 +277,7 @@ func (r *Redis) HMSet(key []byte, fieldValues map[string]interface{}) (ok bool, 
 	}
 	var receive string
 	receive, err = redigo.String(r.conn.Do("HMSET", args...))
-	return receive == boot.OK, err
+	return receive == boot.Ok, err
 }
 
 func (r *Redis) HMGet(key []byte, fields []string) (values []string, err error) {

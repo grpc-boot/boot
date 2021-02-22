@@ -2,7 +2,7 @@ package hash
 
 import (
 	"errors"
-	"hash/crc32"
+	"github.com/grpc-boot/boot"
 	"math"
 	"sort"
 	"sync"
@@ -12,7 +12,7 @@ var ErrNoServer = errors.New("no server")
 
 type Ring interface {
 	StoreServers(servers []CanHash)
-	Get(key []byte) (server CanHash, err error)
+	Get(key interface{}) (server CanHash, err error)
 	AddServer(server CanHash)
 	RemoveServer(server CanHash)
 	Length() int
@@ -103,7 +103,7 @@ func (h *DefaultRing) RemoveServer(server CanHash) {
 	h.mutex.Unlock()
 }
 
-func (h *DefaultRing) Get(key []byte) (server CanHash, err error) {
+func (h *DefaultRing) Get(key interface{}) (server CanHash, err error) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
@@ -116,7 +116,7 @@ func (h *DefaultRing) Get(key []byte) (server CanHash, err error) {
 		return h.nodes[0].server, nil
 	}
 
-	value := crc32.ChecksumIEEE(key)
+	value := boot.HashOrNumber(key)
 	index := sort.Search(length, func(i int) bool {
 		return h.nodes[i].hashValue >= value
 	})

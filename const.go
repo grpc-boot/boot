@@ -1,9 +1,11 @@
 package boot
 
 const (
-	OK = "OK"
+	Ok = "Ok"
 )
 
 const (
-	SUCCESS = 1
+	Success                    = 1
+	DefaultPersonasMax         = 4096
+	DefaultPersonasRedisPrefix = "personas:"
 )

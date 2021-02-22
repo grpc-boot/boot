@@ -31,7 +31,7 @@ func NewGroup(options []Option, ring hash.Ring) *Group {
 	return group
 }
 
-func (g *Group) Get(key []byte) (pool *Pool, err error) {
+func (g *Group) Get(key interface{}) (pool *Pool, err error) {
 	server, err := g.ring.Get(key)
 	if err == nil {
 		return server.(*Pool), nil
