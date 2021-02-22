@@ -212,9 +212,33 @@ func (r *Redis) SetTimeout(key []byte, value interface{}, timeoutSecond int64) (
 	return strings.ToUpper(receive) == boot.OK, err
 }
 
+func (r *Redis) Strlen(key []byte) (length int, err error) {
+	return redigo.Int(r.conn.Do("STRLEN", key))
+}
+
 //endregion
 
-//region 1.2 Hash
+//region 1.2 Bit
+func (r *Redis) SetRange(key []byte, offset int64, value []byte) (length int, err error) {
+	return redigo.Int(r.conn.Do("SETRANGE", key, offset, value))
+}
+
+func (r *Redis) BitCount(key []byte) (count int, err error) {
+	return redigo.Int(r.conn.Do("BITCOUNT", key))
+}
+
+func (r *Redis) GetBit(key []byte, offset int) (val int, err error) {
+	return redigo.Int(r.conn.Do("GETBIT", key, offset))
+}
+
+func (r *Redis) SetBit(key []byte, offset int, value int) (ok bool, err error) {
+	_, err = redigo.Int(r.conn.Do("SETBIT", key, offset, value))
+	return err == nil, err
+}
+
+//endregion
+
+//region 1.3 Hash
 func (r *Redis) HSet(key []byte, field []byte, value interface{}) (exists bool, err error) {
 	var val int
 	val, err = redigo.Int(r.conn.Do("HSET", key, field, value))
@@ -261,7 +285,7 @@ func (r *Redis) HMGet(key []byte, fields []string) (values []string, err error) 
 	start := 0
 	args[start] = key
 	for start = 1; start <= len(fields); start++ {
-		args[start] = fields[start]
+		args[start] = fields[start-1]
 	}
 	return redigo.Strings(r.conn.Do("HMGET", args...))
 }
@@ -271,7 +295,7 @@ func (r *Redis) HMGetMap(key []byte, fields []string) (fieldValues map[string]st
 	start := 0
 	args[start] = key
 	for start = 1; start <= len(fields); start++ {
-		args[start] = fields[start]
+		args[start] = fields[start-1]
 	}
 	var values []string
 	values, err = redigo.Strings(r.conn.Do("HMGET", args...))
