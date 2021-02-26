@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"github.com/grpc-boot/boot"
 	"github.com/grpc-boot/boot/hash"
 )
 
@@ -19,7 +20,7 @@ func NewGroup(options []Option, ring hash.Ring) *Group {
 		size: uint32(poolSize),
 	}
 
-	serverList := make([]hash.CanHash, len(options), len(options))
+	serverList := make([]boot.CanHash, len(options), len(options))
 	for index := 0; index < poolSize; index++ {
 		serverList[index] = NewPool(&options[index])
 	}
@@ -44,7 +45,7 @@ func (g *Group) Index(i int) (pool *Pool, err error) {
 		return nil, hash.ErrNoServer
 	}
 
-	g.ring.Range(func(index int, server hash.CanHash) (handled bool) {
+	g.ring.Range(func(index int, server boot.CanHash) (handled bool) {
 		if index == i {
 			pool = server.(*Pool)
 			return true

@@ -120,8 +120,8 @@ func TestRedis_ScanStrings(t *testing.T) {
 
 }
 
-func TestRedis_SetRange(t *testing.T) {
-	key := []byte("bit:12345")
+func TestRedis_SetBit(t *testing.T) {
+	key := []byte("bit:54321")
 	pool, err := group.Index(0)
 	if err != nil {
 		t.Fatal(err.Error())
@@ -130,7 +130,12 @@ func TestRedis_SetRange(t *testing.T) {
 	r := pool.Get()
 	defer pool.Put(r)
 
-	count, err := r.SetRange(key, 1024, []byte{byte(0)})
+	_, err = r.Del(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ok, err := r.SetBit(key, 1023, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,11 +145,11 @@ func TestRedis_SetRange(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if count != length {
-		t.Fatalf("want true, got false")
+	if length != 128 {
+		t.Fatalf("want 128, got %d", length)
 	}
 
-	ok, err := r.SetBit(key, 1024, 1)
+	ok, err = r.SetBit(key, 1024, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

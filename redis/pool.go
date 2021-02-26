@@ -7,10 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grpc-boot/boot"
-	"github.com/grpc-boot/boot/hash"
-
 	redigo "github.com/garyburd/redigo/redis"
+	"github.com/grpc-boot/boot"
 )
 
 type Option struct {
@@ -32,7 +30,7 @@ type Option struct {
 }
 
 type Pool struct {
-	hash.CanHash
+	boot.CanHash
 
 	id   []byte
 	pool *redigo.Pool
@@ -181,7 +179,11 @@ func (r *Redis) Del(keys ...interface{}) (successCount int64, err error) {
 
 //region 1.1 String
 func (r *Redis) Get(key []byte) (value []byte, err error) {
-	return redigo.Bytes(r.conn.Do("GET", key))
+	value, err = redigo.Bytes(r.conn.Do("GET", key))
+	if err == redigo.ErrNil {
+		return value, nil
+	}
+	return
 }
 
 func (r *Redis) GetString(key []byte) (value string, err error) {
@@ -277,7 +279,7 @@ func (r *Redis) HMSet(key []byte, fieldValues map[string]interface{}) (ok bool, 
 	}
 	var receive string
 	receive, err = redigo.String(r.conn.Do("HMSET", args...))
-	return receive == boot.Ok, err
+	return strings.ToUpper(receive) == boot.Ok, err
 }
 
 func (r *Redis) HMGet(key []byte, fields []string) (values []string, err error) {

@@ -1,0 +1,14 @@
+option:
+  max: 1024
+  useCache: true
+
+redis:
+  host: '10.16.49.69'
+  port: 6379
+  db: 1
+  maxConnLifetime: 600
+  maxIdle: 120
+  maxActive: 20
+  connectTimeout: 1000
+  readTimeout: 200
+  writeTimeout: 500

@@ -7,10 +7,8 @@ import (
 
 type Storage interface {
 	Load(id string) (data []byte, err error)
-	Init(id string, maxLength uint16) (data []byte, err error)
-	Set(id string, property uint16, value uint8) (ok bool, err error)
+	Set(id string, property uint16, value uint8) (data []byte, err error)
 	Get(id string, property uint16) (exists bool, err error)
-	Del(id string) (ok bool, err error)
 }
 
 type redisStorage struct {
@@ -42,7 +40,7 @@ func (r *redisStorage) Load(id string) (data []byte, err error) {
 	return red.Get([]byte(r.prefix + id))
 }
 
-func (r *redisStorage) Init(id string, maxLength uint16) (data []byte, err error) {
+func (r *redisStorage) Set(id string, property uint16, value uint8) (data []byte, err error) {
 	var pool *redis.Pool
 	pool, err = r.driver.Get(id)
 	if err != nil {
@@ -53,24 +51,15 @@ func (r *redisStorage) Init(id string, maxLength uint16) (data []byte, err error
 	defer pool.Put(red)
 
 	key := []byte(r.prefix + id)
-	_, err = red.SetRange([]byte(r.prefix+id), int(maxLength), []byte{byte(0)})
+	var results []interface{}
+	results, err = red.Multi().
+		Send("SETBIT", key, int(property), value).
+		Send("GET", key).
+		ExecPipeline(red)
 	if err != nil {
 		return
 	}
-	return red.Get(key)
-}
-
-func (r *redisStorage) Set(id string, property uint16, value uint8) (ok bool, err error) {
-	var pool *redis.Pool
-	pool, err = r.driver.Get(id)
-	if err != nil {
-		return
-	}
-
-	red := pool.Get()
-	defer pool.Put(red)
-
-	return red.SetBit([]byte(r.prefix+id), int(property), int(value))
+	return results[1].([]byte), nil
 }
 
 func (r *redisStorage) Get(id string, property uint16) (exists bool, err error) {
@@ -86,18 +75,4 @@ func (r *redisStorage) Get(id string, property uint16) (exists bool, err error) 
 	var val int
 	val, err = red.GetBit([]byte(r.prefix+id), int(property))
 	return val == 1, err
-}
-
-func (r *redisStorage) Del(id string) (ok bool, err error) {
-	var pool *redis.Pool
-	pool, err = r.driver.Get(id)
-	if err != nil {
-		return
-	}
-
-	red := pool.Get()
-	defer pool.Put(red)
-	_, err = red.Del([]byte(r.prefix + id))
-
-	return err == nil, err
 }

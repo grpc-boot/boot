@@ -2,7 +2,6 @@ package boot
 
 import (
 	"fmt"
-	"github.com/grpc-boot/boot/hash"
 	"hash/crc32"
 	"strconv"
 )
@@ -34,8 +33,8 @@ func HashOrNumber(key interface{}) (value uint32) {
 		return uint32(key.(int64))
 	case int:
 		return uint32(key.(int))
-	case hash.CanHash:
-		return key.(hash.CanHash).HashCode()
+	case CanHash:
+		return key.(CanHash).HashCode()
 	case string:
 		return crc32.ChecksumIEEE([]byte(key.(string)))
 	case []byte:

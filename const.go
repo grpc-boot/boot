@@ -1,11 +1,12 @@
 package boot
 
 const (
-	Ok = "Ok"
+	Ok = "OK"
 )
 
 const (
-	Success                    = 1
-	DefaultPersonasMax         = 4096
-	DefaultPersonasRedisPrefix = "personas:"
+	Success                     = 1
+	DefaultPersonasCacheTimeout = 60
+	DefaultPersonasMax          = 512
+	DefaultPersonasRedisPrefix  = "boot:pns:"
 )

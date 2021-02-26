@@ -35,3 +35,7 @@ func NewDoubleNode(value interface{}, left unsafe.Pointer, right unsafe.Pointer)
 		Right: right,
 	}
 }
+
+type CanHash interface {
+	HashCode() (hashValue uint32)
+}
