@@ -1,6 +1,7 @@
 package personas
 
 import (
+	"fmt"
 	"github.com/grpc-boot/boot"
 	"strconv"
 	"testing"
@@ -40,12 +41,12 @@ func TestPersonas_Exists(t *testing.T) {
 		t.Fatal("want false, got true")
 	}
 
-	ok, err := personas.SetProperty(id, 0, 1)
+	value, err := personas.SetProperty(id, 0, 1)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
-	if !ok {
+	if !personas.Exists(value, 0) {
 		t.Fatal("want true, got false")
 	}
 
@@ -57,4 +58,37 @@ func TestPersonas_Exists(t *testing.T) {
 	if !exists {
 		t.Fatal("want true, got false")
 	}
+
+	value, err = personas.SetProperty(id, 7, 1)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if !personas.Exists(value, 7) {
+		t.Fatal("want true, got false")
+	}
+
+	value, err = personas.SetProperty(id, 8, 1)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if !personas.Exists(value, 8) {
+		t.Fatal("want true, got false")
+	}
+
+	value, err = personas.SetProperty(id, 16, 1)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if !personas.Exists(value, 16) {
+		t.Fatal("want true, got false")
+	}
+
+	out := ""
+	for _, v := range value {
+		out += fmt.Sprintf("%b", v)
+	}
+	t.Fatal(out)
 }

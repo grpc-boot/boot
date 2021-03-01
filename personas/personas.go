@@ -56,7 +56,8 @@ func (p *Personas) Exists(value []byte, property uint16) (exists bool) {
 		return false
 	}
 
-	return value[index]&byte(property%8) > 0
+	val := uint8(1 << (7 - (property % 8)))
+	return value[index]&val > 0
 }
 
 func (p *Personas) reloadProperties(id string) (value []byte, err error) {
@@ -106,16 +107,17 @@ func (p *Personas) GetProperty(id string, property uint16) (exists bool, err err
 	return p.Exists(val, property), nil
 }
 
-func (p *Personas) SetProperty(id string, property uint16, value uint8) (ok bool, err error) {
-	var data []byte
+func (p *Personas) SetProperty(id string, property uint16, value uint8) (data []byte, err error) {
 	data, err = p.storage.Set(id, property, value)
 	if err != nil {
-		return ok, nil
+		return nil, nil
 	}
 
-	_, err = p.reloadProperties(id)
-	if err != nil {
-		return false, err
+	if p.useCache {
+		p.cache.Set(id, item{
+			value:    data,
+			expireAt: time.Now().Unix() + p.cacheTimeout,
+		})
 	}
-	return true, err
+	return data, err
 }
