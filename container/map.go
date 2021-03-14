@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 
 	"github.com/grpc-boot/boot"
-	"github.com/grpc-boot/boot/hash"
 )
 
 type Map struct {
@@ -30,8 +29,8 @@ func NewMap() *Map {
 func (m *Map) index(key interface{}) uint8 {
 	switch key.(type) {
 	//优先使用自定义hash
-	case hash.CanHash:
-		return uint8(key.(hash.CanHash).HashCode() & math.MaxUint8)
+	case boot.CanHash:
+		return uint8(key.(boot.CanHash).HashCode() & math.MaxUint8)
 	case string:
 		return uint8(crc32.ChecksumIEEE([]byte(key.(string))) & math.MaxUint8)
 	case []byte:

@@ -7,10 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grpc-boot/boot"
-	"github.com/grpc-boot/boot/hash"
-
 	redigo "github.com/garyburd/redigo/redis"
+	"github.com/grpc-boot/boot"
 )
 
 type Option struct {
@@ -32,7 +30,7 @@ type Option struct {
 }
 
 type Pool struct {
-	hash.CanHash
+	boot.CanHash
 
 	id   []byte
 	pool *redigo.Pool
@@ -109,7 +107,7 @@ func (r *Redis) Send(cmd string, args ...interface{}) (err error) {
 func (r *Redis) Exists(key []byte) (exists bool, err error) {
 	var val int
 	val, err = redigo.Int(r.conn.Do("EXISTS", key))
-	return val == boot.SUCCESS, err
+	return val == boot.Success, err
 }
 
 func (r *Redis) Expire(key []byte, timeoutSecond int64) (ok bool, err error) {
@@ -181,7 +179,11 @@ func (r *Redis) Del(keys ...interface{}) (successCount int64, err error) {
 
 //region 1.1 String
 func (r *Redis) Get(key []byte) (value []byte, err error) {
-	return redigo.Bytes(r.conn.Do("GET", key))
+	value, err = redigo.Bytes(r.conn.Do("GET", key))
+	if err == redigo.ErrNil {
+		return value, nil
+	}
+	return
 }
 
 func (r *Redis) GetString(key []byte) (value string, err error) {
@@ -203,18 +205,42 @@ func (r *Redis) Set(key []byte, params ...interface{}) (ok bool, err error) {
 	var receive string
 	receive, err = redigo.String(r.conn.Do("SET", args...))
 	boot.ReleaseArgs(args)
-	return strings.ToUpper(receive) == boot.OK, err
+	return strings.ToUpper(receive) == boot.Ok, err
 }
 
 func (r *Redis) SetTimeout(key []byte, value interface{}, timeoutSecond int64) (ok bool, err error) {
 	var receive string
 	receive, err = redigo.String(r.conn.Do("SETEX", key, timeoutSecond, value))
-	return strings.ToUpper(receive) == boot.OK, err
+	return strings.ToUpper(receive) == boot.Ok, err
+}
+
+func (r *Redis) Strlen(key []byte) (length int, err error) {
+	return redigo.Int(r.conn.Do("STRLEN", key))
 }
 
 //endregion
 
-//region 1.2 Hash
+//region 1.2 Bit
+func (r *Redis) SetRange(key []byte, offset int, value []byte) (length int, err error) {
+	return redigo.Int(r.conn.Do("SETRANGE", key, offset, value))
+}
+
+func (r *Redis) BitCount(key []byte) (count int, err error) {
+	return redigo.Int(r.conn.Do("BITCOUNT", key))
+}
+
+func (r *Redis) GetBit(key []byte, offset int) (val int, err error) {
+	return redigo.Int(r.conn.Do("GETBIT", key, offset))
+}
+
+func (r *Redis) SetBit(key []byte, offset int, value int) (ok bool, err error) {
+	_, err = redigo.Int(r.conn.Do("SETBIT", key, offset, value))
+	return err == nil, err
+}
+
+//endregion
+
+//region 1.3 Hash
 func (r *Redis) HSet(key []byte, field []byte, value interface{}) (exists bool, err error) {
 	var val int
 	val, err = redigo.Int(r.conn.Do("HSET", key, field, value))
@@ -222,7 +248,7 @@ func (r *Redis) HSet(key []byte, field []byte, value interface{}) (exists bool, 
 		return false, err
 	}
 
-	return val == boot.SUCCESS, err
+	return val == boot.Success, err
 }
 
 func (r *Redis) HGet(key []byte, field []byte) (value []byte, err error) {
@@ -253,7 +279,7 @@ func (r *Redis) HMSet(key []byte, fieldValues map[string]interface{}) (ok bool, 
 	}
 	var receive string
 	receive, err = redigo.String(r.conn.Do("HMSET", args...))
-	return receive == boot.OK, err
+	return strings.ToUpper(receive) == boot.Ok, err
 }
 
 func (r *Redis) HMGet(key []byte, fields []string) (values []string, err error) {
@@ -261,7 +287,7 @@ func (r *Redis) HMGet(key []byte, fields []string) (values []string, err error) 
 	start := 0
 	args[start] = key
 	for start = 1; start <= len(fields); start++ {
-		args[start] = fields[start]
+		args[start] = fields[start-1]
 	}
 	return redigo.Strings(r.conn.Do("HMGET", args...))
 }
@@ -271,7 +297,7 @@ func (r *Redis) HMGetMap(key []byte, fields []string) (fieldValues map[string]st
 	start := 0
 	args[start] = key
 	for start = 1; start <= len(fields); start++ {
-		args[start] = fields[start]
+		args[start] = fields[start-1]
 	}
 	var values []string
 	values, err = redigo.Strings(r.conn.Do("HMGET", args...))
