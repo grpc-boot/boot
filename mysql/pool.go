@@ -47,12 +47,27 @@ func (p *Pool) Db() *sql.DB {
 	return p.db
 }
 
-func (p *Pool) Query(sqlStr string, args ...interface{}) (*sql.Rows, error) {
+func (p *Pool) Query(sqlStr string, args ...interface{}) (rows *sql.Rows, err error) {
 	return p.db.Query(sqlStr, args...)
 }
 
-func (p *Pool) Execute(sqlStr string, args ...interface{}) (sql.Result, error) {
-	return p.db.Exec(sqlStr, args...)
+func (p *Pool) Execute(sqlStr string, args ...interface{}) (result *ExecResult, err error) {
+	res, err := p.db.Exec(sqlStr, args...)
+	if err != nil {
+		return
+	}
+
+	result = &ExecResult{}
+	result.AffectedRows, err = res.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+
+	result.LastInsertId, err = res.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+	return
 }
 
 func (p *Pool) Find(query *Query) (*sql.Rows, error) {
