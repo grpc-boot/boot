@@ -1,11 +1,11 @@
 package personas
 
 import (
-	"github.com/grpc-boot/boot"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/grpc-boot/boot"
 	"github.com/grpc-boot/boot/redis"
 )
 
