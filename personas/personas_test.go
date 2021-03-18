@@ -1,7 +1,6 @@
 package personas
 
 import (
-	"fmt"
 	"github.com/grpc-boot/boot"
 	"strconv"
 	"testing"
@@ -17,36 +16,44 @@ var (
 )
 
 type Conf struct {
-	Option     Option       `yaml:"option" json:"option"`
-	RedisGroup redis.Option `yaml:"redis" json:"redis"`
+	Option  Option         `yaml:"option" json:"option"`
+	Storage []redis.Option `yaml:"storage" json:"storage"`
 }
 
 func init() {
 	conf = new(Conf)
 	boot.Yaml("./app.yml", conf)
 
-	redisGroup = redis.NewGroup([]redis.Option{conf.RedisGroup}, nil)
+	redisGroup = redis.NewGroup(conf.Storage, nil)
 	conf.Option.Storage = NewRedisPersonas(redisGroup, "")
 	personas = NewPersonas(&conf.Option)
 }
 
-func TestPersonas_Exists(t *testing.T) {
+func TestPersonas_GetProperty(t *testing.T) {
 	id := strconv.FormatInt(time.Now().Unix(), 10)
-	val, err := personas.LoadProperties(id)
+
+	//测试需要，真实情况根据自己业务而定
+	defer func() {
+		if _, err := personas.Destroy(id); err != nil {
+			t.Fatal(err.Error())
+		}
+	}()
+
+	data, err := personas.LoadProperties(id)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
-	if personas.Exists(val, 1) {
+	if personas.Exists(data, 1) {
 		t.Fatal("want false, got true")
 	}
 
-	value, err := personas.SetProperty(id, 0, 1)
+	ok, err := personas.SetProperty(id, 0, true)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
-	if !personas.Exists(value, 0) {
+	if !ok {
 		t.Fatal("want true, got false")
 	}
 
@@ -59,36 +66,29 @@ func TestPersonas_Exists(t *testing.T) {
 		t.Fatal("want true, got false")
 	}
 
-	value, err = personas.SetProperty(id, 7, 1)
+	data, err = personas.SetAndLoadProperty(id, 7, true)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
-	if !personas.Exists(value, 7) {
+	if !personas.Exists(data, 7) {
 		t.Fatal("want true, got false")
 	}
 
-	value, err = personas.SetProperty(id, 8, 1)
+	ok, err = personas.DelProperty(id, 7)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if !ok {
+		t.Fatal("want true, got false")
+	}
+
+	exists, err = personas.GetProperty(id, 7)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
-	if !personas.Exists(value, 8) {
-		t.Fatal("want true, got false")
+	if exists {
+		t.Fatal("want false, got true")
 	}
-
-	value, err = personas.SetProperty(id, 16, 1)
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-
-	if !personas.Exists(value, 16) {
-		t.Fatal("want true, got false")
-	}
-
-	out := ""
-	for _, v := range value {
-		out += fmt.Sprintf("%b", v)
-	}
-	t.Fatal(out)
 }
