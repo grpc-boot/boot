@@ -1,12 +1,14 @@
 package container
 
 import (
-	"github.com/grpc-boot/boot/atomic"
 	"hash/crc32"
+	"math"
+	"math/rand"
 	"testing"
 	"time"
 
-	"github.com/grpc-boot/boot/hash"
+	"github.com/grpc-boot/boot"
+	"github.com/grpc-boot/boot/atomic"
 )
 
 var (
@@ -14,7 +16,7 @@ var (
 )
 
 type Data struct {
-	hash.CanHash
+	boot.CanHash
 
 	id string
 }
@@ -158,6 +160,58 @@ func BenchmarkLocklessQueue_Push(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			queue.Push(val.Incr(1))
+		}
+	})
+}
+
+func BenchmarkChain_Next(b *testing.B) {
+	type Response struct {
+		Status int64
+		Msg    string
+		Info   struct {
+			Id   int64
+			Name string
+		}
+	}
+
+	chain := NewChain()
+
+	var count atomic.Uint64
+	chain.Use(func(value interface{}) (handled bool) {
+		value.(*Response).Info.Id = rand.Int63n(math.MaxUint32)
+		return
+	})
+
+	chain.Use(func(value interface{}) (handled bool) {
+		if value.(*Response).Info.Id&math.MaxUint8 <= math.MaxInt8 {
+			value.(*Response).Status = 200
+			value.(*Response).Info.Name = "ok"
+			handled = true
+		}
+		return
+	})
+
+	chain.Use(func(value interface{}) (handled bool) {
+		value.(*Response).Status = 401
+		val := count.Incr(1)
+		if val&math.MaxUint8 == 0 {
+			go func(r *Response) {
+				r.Status = 500
+			}(value.(*Response))
+		}
+		return
+	})
+
+	rand.Seed(time.Now().UnixNano())
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			resp := &Response{
+				Status: 100 + rand.Int63n(401),
+				Msg:    "dsadf",
+			}
+			chain.Next(resp)
 		}
 	})
 }
