@@ -14,7 +14,7 @@ import (
 
 type Service interface {
 	Register(serviceTarget string, value string)
-	Get(serviceTarget string) (value interface{}, exists bool)
+	Get(serviceTarget string) (list map[string]interface{}, exists bool)
 }
 
 func NewService(conf *clientv3.Config, prefix string, opts ...clientv3.OpOption) (s Service, err error) {
@@ -113,13 +113,13 @@ func (s *service) watch(opts ...clientv3.OpOption) {
 }
 
 func (s *service) addService(key string, value interface{}) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
 	serviceTarget, index := s.key2Target(key)
 	if serviceTarget == "" || index == "" {
 		return
 	}
 
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	if _, exists := s.service[serviceTarget]; !exists {
 		s.service[serviceTarget] = make(map[string]interface{})
 	}
@@ -127,12 +127,13 @@ func (s *service) addService(key string, value interface{}) {
 }
 
 func (s *service) delService(key string) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
 	serviceTarget, index := s.key2Target(key)
 	if serviceTarget == "" || index == "" {
 		return
 	}
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
 	if _, exists := s.service[serviceTarget]; !exists {
 		return
@@ -175,10 +176,10 @@ func (s *service) Register(serviceTarget string, value string) {
 	}()
 }
 
-func (s *service) Get(key string) (value interface{}, exists bool) {
+func (s *service) Get(key string) (list map[string]interface{}, exists bool) {
 	s.mutex.RLock()
 	defer s.mutex.Unlock()
-	value, exists = s.service[key]
+	list, exists = s.service[key]
 	return
 }
 
@@ -188,8 +189,10 @@ func (s *service) Close() (err error) {
 
 type Client interface {
 	Watch(key string, opts ...clientv3.OpOption)
+	Put(key string, value string, timeout time.Duration, opts ...clientv3.OpOption) (resp *clientv3.PutResponse, err error)
 	Get(key string) (value interface{}, exists bool)
 	GetRemote(key string, timeout time.Duration) (kvs []*mvccpb.KeyValue, err error)
+	Delete(key string, timeout time.Duration, opts ...clientv3.OpOption) (resp *clientv3.DeleteResponse, err error)
 	Close() (err error)
 }
 
@@ -266,6 +269,18 @@ func (c *client) GetGetRemote(key string, timeout time.Duration) (kvs []*mvccpb.
 		return
 	}
 	return resp.Kvs, nil
+}
+
+func (c *client) Put(key string, value string, timeout time.Duration, opts ...clientv3.OpOption) (resp *clientv3.PutResponse, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return c.client.Put(ctx, key, value, opts...)
+}
+
+func (c *client) Delete(key string, timeout time.Duration, opts ...clientv3.OpOption) (resp *clientv3.DeleteResponse, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return c.client.Delete(ctx, key, opts...)
 }
 
 func (c *client) Close() (err error) {
