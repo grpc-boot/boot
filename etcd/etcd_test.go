@@ -7,6 +7,24 @@ import (
 	"go.etcd.io/etcd/client/v3"
 )
 
+func TestService_Register(t *testing.T) {
+	s, err := NewService(&clientv3.Config{
+		Endpoints:         []string{"10.16.49.131:2379"},
+		AutoSyncInterval:  0,
+		DialTimeout:       time.Second * 3,
+		DialKeepAliveTime: 60,
+		Username:          "",
+		Password:          "",
+	}, "boot/service", clientv3.WithPrefix())
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	s.Register("account", `{"host":"127.0.0.1", "port":4567}`)
+}
+
 func BenchmarkGet(b *testing.B) {
 	cli, err := NewClient(&clientv3.Config{
 		Endpoints:         []string{"10.16.49.131:2379"},

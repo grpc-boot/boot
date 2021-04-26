@@ -15,6 +15,7 @@ import (
 type Service interface {
 	Register(serviceTarget string, value string)
 	Get(serviceTarget string) (list map[string]interface{}, exists bool)
+	Close() (err error)
 }
 
 func NewService(conf *clientv3.Config, prefix string, opts ...clientv3.OpOption) (s Service, err error) {
@@ -178,7 +179,7 @@ func (s *service) Register(serviceTarget string, value string) {
 
 func (s *service) Get(key string) (list map[string]interface{}, exists bool) {
 	s.mutex.RLock()
-	defer s.mutex.Unlock()
+	defer s.mutex.RUnlock()
 	list, exists = s.service[key]
 	return
 }
