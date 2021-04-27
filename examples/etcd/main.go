@@ -21,8 +21,9 @@ var (
 		Username:          "",
 		Password:          "",
 	}
-	s          etcd.Service
-	c          etcd.Client
+
+	s, _       = etcd.NewService(conf, "boot/service", clientv3.WithPrefix())
+	c, _       = etcd.NewClient(conf, []string{"config"}, clientv3.WithPrefix())
 	configData = map[string]interface{}{
 		"config/cloud":   `{"ver":"3.4.5", "updated_at":%d}`,
 		"config/mini/db": `{"ver":"3.4.5", "updated_at":%d}`,
@@ -39,33 +40,6 @@ func logService() {
 	}
 }
 
-func register() {
-	var err error
-	s, err = etcd.NewService(conf, "boot/service", clientv3.WithPrefix())
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer s.Close()
-	s.Register("account", `{"host":"127.0.0.1", "port":4567}`)
-}
-
-func client() {
-	var err error
-	c, err = etcd.NewClient(conf, []string{"config"}, clientv3.WithPrefix())
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	go func() {
-		tick := time.NewTicker(time.Second)
-		for range tick.C {
-			for key, value := range configData {
-				c.Put(key, fmt.Sprintf(value.(string), time.Now().Unix()), time.Second)
-			}
-		}
-	}()
-}
-
 func logConf() {
 	tick := time.NewTicker(time.Second)
 	for range tick.C {
@@ -77,11 +51,24 @@ func logConf() {
 }
 
 func main() {
-	//register()
-	//go logService()
+	defer func() {
+		_ = c.Close()
+		_ = s.Close()
+	}()
 
-	client()
+	go logService()
 	go logConf()
+
+	s.Register("account", `{"host":"10.16.49.131", "port":8090, "protocal":"grpc"}`)
+
+	go func() {
+		tick := time.NewTicker(time.Second)
+		for range tick.C {
+			for key, value := range configData {
+				c.Put(key, fmt.Sprintf(value.(string), time.Now().Unix()), time.Second)
+			}
+		}
+	}()
 
 	hold := grace.NewHold(func(ctx context.Context) (err error) {
 		return
