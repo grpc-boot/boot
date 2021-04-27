@@ -13,8 +13,14 @@ import (
 )
 
 type Service interface {
+	//注册服务
 	Register(serviceTarget string, value string)
+	//获取所有服务列表
 	Get(serviceTarget string) (list map[string]interface{}, exists bool)
+	//随机取一个服务
+	RandOne(key string) (value interface{}, exists bool)
+	//遍历服务，handler返回true时停止遍历
+	Range(key string, handler func(index string, val interface{}) (handled bool))
 	Close() (err error)
 }
 
@@ -180,8 +186,42 @@ func (s *service) Register(serviceTarget string, value string) {
 func (s *service) Get(key string) (list map[string]interface{}, exists bool) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	list, exists = s.service[key]
+	var items map[string]interface{}
+	items, exists = s.service[key]
+	if exists {
+		//拷贝，否则有并发问题
+		list = make(map[string]interface{}, len(items))
+		for index, value := range list {
+			list[index] = value
+		}
+	}
 	return
+}
+
+func (s *service) RandOne(key string) (value interface{}, exists bool) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	var items map[string]interface{}
+	items, exists = s.service[key]
+	if exists {
+		for _, val := range items {
+			return val, exists
+		}
+	}
+	return
+}
+
+func (s *service) Range(key string, handler func(index string, val interface{}) (handled bool)) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	items, exists := s.service[key]
+	if !exists {
+		for index, val := range items {
+			if handler(index, val) {
+				return
+			}
+		}
+	}
 }
 
 func (s *service) Close() (err error) {
@@ -194,6 +234,7 @@ type Client interface {
 	Get(key string) (value interface{}, exists bool)
 	GetRemote(key string, timeout time.Duration) (kvs []*mvccpb.KeyValue, err error)
 	Delete(key string, timeout time.Duration, opts ...clientv3.OpOption) (resp *clientv3.DeleteResponse, err error)
+	Connection() (client *clientv3.Client)
 	Close() (err error)
 }
 
@@ -282,6 +323,10 @@ func (c *client) Delete(key string, timeout time.Duration, opts ...clientv3.OpOp
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	return c.client.Delete(ctx, key, opts...)
+}
+
+func (c *client) Connection() (client *clientv3.Client) {
+	return c.client
 }
 
 func (c *client) Close() (err error) {
