@@ -215,7 +215,7 @@ func (s *service) Range(key string, handler func(index string, val interface{}) 
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	items, exists := s.service[key]
-	if !exists {
+	if exists {
 		for index, val := range items {
 			if handler(index, val) {
 				return
