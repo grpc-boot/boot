@@ -2,16 +2,45 @@ package etcd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/grpc-boot/boot/container"
 
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	"go.etcd.io/etcd/client/v3"
 )
 
+//region 1.0 值反序列化
+var (
+	DefaultJsonMapDeserialize Deserialize = func(data []byte) (value interface{}, err error) {
+		var val map[string]interface{}
+		err = json.Unmarshal(data, &val)
+		return val, err
+	}
+)
+
+type Deserialize func(data []byte) (value interface{}, err error)
+
+func deserialize(deserializers *map[string]Deserialize, key string, val []byte) (value interface{}, err error) {
+	if deserializers == nil {
+		return val, err
+	}
+
+	if deserializer, exists := (*deserializers)[key]; exists {
+		value, err = deserializer(val)
+		return value, err
+	}
+	return val, err
+}
+
+//endregion
+
+//region 1.1 服务注册与发现
 type Service interface {
 	//注册服务
 	Register(serviceTarget string, value string)
@@ -24,9 +53,9 @@ type Service interface {
 	Close() (err error)
 }
 
-func NewService(conf *clientv3.Config, prefix string, opts ...clientv3.OpOption) (s Service, err error) {
+func NewService(conf *clientv3.Config, prefix string, deserializers map[string]Deserialize, opts ...clientv3.OpOption) (s Service, err error) {
 	var serv *service
-	serv, err = newService(conf)
+	serv, err = newService(conf, deserializers)
 	if err != nil {
 		return
 	}
@@ -48,10 +77,16 @@ func NewService(conf *clientv3.Config, prefix string, opts ...clientv3.OpOption)
 			continue
 		}
 
+		value, er := deserialize(&deserializers, serviceTarget, ev.Value)
+		if er != nil {
+			continue
+		}
+
 		if _, exists := serv.service[serviceTarget]; !exists {
 			serv.service[serviceTarget] = make(map[string]interface{})
 		}
-		serv.service[serviceTarget][index] = ev.Value
+
+		serv.service[serviceTarget][index] = value
 	}
 
 	serv.watch(opts...)
@@ -62,13 +97,14 @@ func NewService(conf *clientv3.Config, prefix string, opts ...clientv3.OpOption)
 type service struct {
 	Service
 
-	mutex   sync.RWMutex
-	prefix  string
-	service map[string]map[string]interface{}
-	client  *clientv3.Client
+	mutex         sync.RWMutex
+	prefix        string
+	service       map[string]map[string]interface{}
+	client        *clientv3.Client
+	deserializers map[string]Deserialize
 }
 
-func newService(conf *clientv3.Config) (c *service, err error) {
+func newService(conf *clientv3.Config, deserializers map[string]Deserialize) (c *service, err error) {
 	var conn *clientv3.Client
 	conn, err = clientv3.New(*conf)
 
@@ -77,8 +113,9 @@ func newService(conf *clientv3.Config) (c *service, err error) {
 	}
 
 	c = &service{
-		client:  conn,
-		service: make(map[string]map[string]interface{}),
+		client:        conn,
+		service:       make(map[string]map[string]interface{}),
+		deserializers: deserializers,
 	}
 	return
 }
@@ -125,12 +162,17 @@ func (s *service) addService(key string, value interface{}) {
 		return
 	}
 
+	val, err := deserialize(&s.deserializers, serviceTarget, value.([]byte))
+	if err != nil {
+		return
+	}
+
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if _, exists := s.service[serviceTarget]; !exists {
 		s.service[serviceTarget] = make(map[string]interface{})
 	}
-	s.service[serviceTarget][index] = value
+	s.service[serviceTarget][index] = val
 }
 
 func (s *service) delService(key string) {
@@ -228,6 +270,9 @@ func (s *service) Close() (err error) {
 	return s.client.Close()
 }
 
+//endregion
+
+//region 1.2 配置管理
 type Client interface {
 	Watch(key string, opts ...clientv3.OpOption)
 	Put(key string, value string, timeout time.Duration, opts ...clientv3.OpOption) (resp *clientv3.PutResponse, err error)
@@ -238,9 +283,9 @@ type Client interface {
 	Close() (err error)
 }
 
-func NewClient(conf *clientv3.Config, prefixes []string, opts ...clientv3.OpOption) (c Client, err error) {
+func NewClient(conf *clientv3.Config, prefixes []string, keyItems map[string]Deserialize, opts ...clientv3.OpOption) (c Client, err error) {
 	var cli *client
-	cli, err = newClient(conf)
+	cli, err = newClient(conf, keyItems)
 	if err != nil {
 		return
 	}
@@ -253,7 +298,10 @@ func NewClient(conf *clientv3.Config, prefixes []string, opts ...clientv3.OpOpti
 		}
 
 		for _, ev := range resp.Kvs {
-			cli.cache.Store(string(ev.Key), ev.Value)
+			key := string(ev.Key)
+			if value, er := deserialize(&cli.deserializers, key, ev.Value); er == nil {
+				cli.cache.Set(key, value)
+			}
 		}
 
 		cli.Watch(prefix, opts...)
@@ -264,11 +312,12 @@ func NewClient(conf *clientv3.Config, prefixes []string, opts ...clientv3.OpOpti
 type client struct {
 	Client
 
-	cache  sync.Map
-	client *clientv3.Client
+	cache         *container.Map
+	client        *clientv3.Client
+	deserializers map[string]Deserialize
 }
 
-func newClient(conf *clientv3.Config) (c *client, err error) {
+func newClient(conf *clientv3.Config, deserializers map[string]Deserialize) (c *client, err error) {
 	var conn *clientv3.Client
 	conn, err = clientv3.New(*conf)
 
@@ -277,7 +326,9 @@ func newClient(conf *clientv3.Config) (c *client, err error) {
 	}
 
 	c = &client{
-		client: conn,
+		client:        conn,
+		cache:         container.NewMap(),
+		deserializers: deserializers,
 	}
 	return
 }
@@ -289,9 +340,12 @@ func (c *client) Watch(key string, opts ...clientv3.OpOption) {
 			for _, ev := range watchResponse.Events {
 				switch ev.Type {
 				case mvccpb.PUT:
-					c.cache.Store(string(ev.Kv.Key), ev.Kv.Value)
+					k := string(ev.Kv.Key)
+					if value, err := deserialize(&c.deserializers, k, ev.Kv.Value); err == nil {
+						c.cache.Set(k, value)
+					}
 				case mvccpb.DELETE:
-					c.cache.Delete(string(ev.Kv.Key))
+					c.cache.Delete(ev.Kv)
 				}
 			}
 		}
@@ -299,7 +353,7 @@ func (c *client) Watch(key string, opts ...clientv3.OpOption) {
 }
 
 func (c *client) Get(key string) (value interface{}, exists bool) {
-	return c.cache.Load(key)
+	return c.cache.Get(key)
 }
 
 func (c *client) GetGetRemote(key string, timeout time.Duration) (kvs []*mvccpb.KeyValue, err error) {
@@ -332,3 +386,5 @@ func (c *client) Connection() (client *clientv3.Client) {
 func (c *client) Close() (err error) {
 	return c.client.Close()
 }
+
+//endregion
