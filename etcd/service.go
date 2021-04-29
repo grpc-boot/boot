@@ -2,45 +2,16 @@ package etcd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/grpc-boot/boot/container"
 
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	"go.etcd.io/etcd/client/v3"
 )
 
-//region 1.0 值反序列化
-var (
-	DefaultJsonMapDeserialize Deserialize = func(data []byte) (value interface{}, err error) {
-		var val map[string]interface{}
-		err = json.Unmarshal(data, &val)
-		return val, err
-	}
-)
-
-type Deserialize func(data []byte) (value interface{}, err error)
-
-func deserialize(deserializers *map[string]Deserialize, key string, val []byte) (value interface{}, err error) {
-	if deserializers == nil {
-		return val, err
-	}
-
-	if deserializer, exists := (*deserializers)[key]; exists {
-		value, err = deserializer(val)
-		return value, err
-	}
-	return val, err
-}
-
-//endregion
-
-//region 1.1 服务注册与发现
 type Service interface {
 	//注册服务
 	Register(serviceTarget string, value string)
@@ -63,7 +34,7 @@ func NewService(conf *clientv3.Config, prefix string, deserializers map[string]D
 
 	var resp *clientv3.GetResponse
 
-	resp, err = serv.client.Get(context.Background(), serv.prefix, clientv3.WithPrefix())
+	resp, err = serv.connection.Get(context.Background(), serv.prefix, clientv3.WithPrefix())
 	if err != nil {
 		return
 	}
@@ -100,7 +71,7 @@ type service struct {
 	mutex         sync.RWMutex
 	prefix        string
 	service       map[string]map[string]interface{}
-	client        *clientv3.Client
+	connection    *clientv3.Client
 	deserializers map[string]Deserialize
 }
 
@@ -113,7 +84,7 @@ func newService(conf *clientv3.Config, deserializers map[string]Deserialize) (c 
 	}
 
 	c = &service{
-		client:        conn,
+		connection:    conn,
 		service:       make(map[string]map[string]interface{}),
 		deserializers: deserializers,
 	}
@@ -142,7 +113,7 @@ func (s *service) key2Target(key string) (serviceTarget, index string) {
 
 func (s *service) watch(opts ...clientv3.OpOption) {
 	go func() {
-		watchanel := s.client.Watch(context.Background(), s.prefix, opts...)
+		watchanel := s.connection.Watch(context.Background(), s.prefix, opts...)
 		for watchResponse := range watchanel {
 			for _, ev := range watchResponse.Events {
 				switch ev.Type {
@@ -194,8 +165,8 @@ func (s *service) delService(key string) {
 func (s *service) Register(serviceTarget string, value string) {
 	serviceTarget = fmt.Sprintf(s.prefix+"/%s/", serviceTarget)
 	var (
-		kv                          = clientv3.NewKV(s.client)
-		lease                       = clientv3.NewLease(s.client)
+		kv                          = clientv3.NewKV(s.connection)
+		lease                       = clientv3.NewLease(s.connection)
 		curLeaseId clientv3.LeaseID = 0
 		leaseResp  *clientv3.LeaseGrantResponse
 		err        error
@@ -267,124 +238,5 @@ func (s *service) Range(key string, handler func(index string, val interface{}) 
 }
 
 func (s *service) Close() (err error) {
-	return s.client.Close()
+	return s.connection.Close()
 }
-
-//endregion
-
-//region 1.2 配置管理
-type Client interface {
-	Watch(key string, opts ...clientv3.OpOption)
-	Put(key string, value string, timeout time.Duration, opts ...clientv3.OpOption) (resp *clientv3.PutResponse, err error)
-	Get(key string) (value interface{}, exists bool)
-	GetRemote(key string, timeout time.Duration) (kvs []*mvccpb.KeyValue, err error)
-	Delete(key string, timeout time.Duration, opts ...clientv3.OpOption) (resp *clientv3.DeleteResponse, err error)
-	Connection() (client *clientv3.Client)
-	Close() (err error)
-}
-
-func NewClient(conf *clientv3.Config, prefixes []string, keyItems map[string]Deserialize, opts ...clientv3.OpOption) (c Client, err error) {
-	var cli *client
-	cli, err = newClient(conf, keyItems)
-	if err != nil {
-		return
-	}
-
-	var resp *clientv3.GetResponse
-	for _, prefix := range prefixes {
-		resp, err = cli.client.Get(context.Background(), prefix, clientv3.WithPrefix())
-		if err != nil {
-			return
-		}
-
-		for _, ev := range resp.Kvs {
-			key := string(ev.Key)
-			if value, er := deserialize(&cli.deserializers, key, ev.Value); er == nil {
-				cli.cache.Set(key, value)
-			}
-		}
-
-		cli.Watch(prefix, opts...)
-	}
-	return cli, err
-}
-
-type client struct {
-	Client
-
-	cache         *container.Map
-	client        *clientv3.Client
-	deserializers map[string]Deserialize
-}
-
-func newClient(conf *clientv3.Config, deserializers map[string]Deserialize) (c *client, err error) {
-	var conn *clientv3.Client
-	conn, err = clientv3.New(*conf)
-
-	if err != nil {
-		return nil, err
-	}
-
-	c = &client{
-		client:        conn,
-		cache:         container.NewMap(),
-		deserializers: deserializers,
-	}
-	return
-}
-
-func (c *client) Watch(key string, opts ...clientv3.OpOption) {
-	go func() {
-		watchanel := c.client.Watch(context.Background(), key, opts...)
-		for watchResponse := range watchanel {
-			for _, ev := range watchResponse.Events {
-				switch ev.Type {
-				case mvccpb.PUT:
-					k := string(ev.Kv.Key)
-					if value, err := deserialize(&c.deserializers, k, ev.Kv.Value); err == nil {
-						c.cache.Set(k, value)
-					}
-				case mvccpb.DELETE:
-					c.cache.Delete(ev.Kv)
-				}
-			}
-		}
-	}()
-}
-
-func (c *client) Get(key string) (value interface{}, exists bool) {
-	return c.cache.Get(key)
-}
-
-func (c *client) GetGetRemote(key string, timeout time.Duration) (kvs []*mvccpb.KeyValue, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	var resp *clientv3.GetResponse
-	resp, err = c.client.Get(ctx, key)
-	if err != nil {
-		return
-	}
-	return resp.Kvs, nil
-}
-
-func (c *client) Put(key string, value string, timeout time.Duration, opts ...clientv3.OpOption) (resp *clientv3.PutResponse, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	return c.client.Put(ctx, key, value, opts...)
-}
-
-func (c *client) Delete(key string, timeout time.Duration, opts ...clientv3.OpOption) (resp *clientv3.DeleteResponse, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	return c.client.Delete(ctx, key, opts...)
-}
-
-func (c *client) Connection() (client *clientv3.Client) {
-	return c.client
-}
-
-func (c *client) Close() (err error) {
-	return c.client.Close()
-}
-
-//endregion
