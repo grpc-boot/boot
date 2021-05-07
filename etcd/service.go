@@ -173,6 +173,12 @@ func (s *service) Register(serviceTarget string, value string) {
 	)
 
 	go func() {
+		defer func() {
+			if curLeaseId != 0 {
+				_, _ = lease.Revoke(context.TODO(), curLeaseId)
+			}
+		}()
+
 		tick := time.NewTicker(time.Second)
 		for range tick.C {
 			if curLeaseId == 0 {
