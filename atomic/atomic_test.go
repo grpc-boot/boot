@@ -3,6 +3,8 @@ package atomic
 import (
 	"testing"
 	"unsafe"
+
+	"github.com/grpc-boot/boot"
 )
 
 type User struct {
@@ -12,11 +14,11 @@ type User struct {
 func TestCas(t *testing.T) {
 	var data unsafe.Pointer
 
-	user1 := NewNode(User{Id: 1})
+	user1 := boot.NewNode(User{Id: 1})
 
 	Set(&data, user1)
 
-	user2 := NewNode(User{
+	user2 := boot.NewNode(User{
 		Id: 2,
 	})
 
@@ -24,13 +26,13 @@ func TestCas(t *testing.T) {
 		t.Fatal("want true, got false")
 	}
 
-	data1 := NewNode(3)
+	data1 := boot.NewNode(3)
 	if !Cas(&data, user2, data1) {
 		t.Fatal("want true, got false")
 	}
 
 	SetValue(&data, 4)
-	if Get(&data).value != 4 {
+	if Get(&data).Value != 4 {
 		t.Fatal("want true, got false")
 	}
 }
