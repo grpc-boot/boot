@@ -12,7 +12,6 @@ type Option struct {
 type Storage interface {
 	Load(id string) (data []byte, err error)
 	Set(id string, property uint16, value bool) (ok bool, err error)
-	SetAndLoad(id string, property uint16, value bool) (data []byte, err error)
 	Get(id string, property uint16) (exists bool, err error)
 	Destroy(id string) (ok bool, err error)
 }
@@ -49,25 +48,12 @@ func (p *Personas) Exists(data []byte, property uint16) (exists bool) {
 	return (data)[index]&val > 0
 }
 
-func (p *Personas) LoadProperties(id string) (data []byte, err error) {
-	data, err = p.storage.Load(id)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(data) < 1 {
-		return p.storage.SetAndLoad(id, p.max, false)
-	}
-
-	return data, nil
+func (p *Personas) Load(id string) (data []byte, err error) {
+	return p.storage.Load(id)
 }
 
 func (p *Personas) SetProperty(id string, property uint16, value bool) (ok bool, err error) {
 	return p.storage.Set(id, property, value)
-}
-
-func (p *Personas) SetAndLoadProperty(id string, property uint16, value bool) (data []byte, err error) {
-	return p.storage.SetAndLoad(id, property, value)
 }
 
 func (p *Personas) GetProperty(id string, property uint16) (exists bool, err error) {

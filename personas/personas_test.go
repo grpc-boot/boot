@@ -39,7 +39,7 @@ func TestPersonas_GetProperty(t *testing.T) {
 		}
 	}()
 
-	data, err := personas.LoadProperties(id)
+	data, err := personas.Load(id)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -63,15 +63,6 @@ func TestPersonas_GetProperty(t *testing.T) {
 	}
 
 	if !exists {
-		t.Fatal("want true, got false")
-	}
-
-	data, err = personas.SetAndLoadProperty(id, 7, true)
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-
-	if !personas.Exists(data, 7) {
 		t.Fatal("want true, got false")
 	}
 

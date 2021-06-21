@@ -52,34 +52,6 @@ func (r *redisStorage) Set(id string, property uint16, value bool) (ok bool, err
 	return red.SetBit(key, int(property), 0)
 }
 
-func (r *redisStorage) SetAndLoad(id string, property uint16, value bool) (data []byte, err error) {
-	var pool *redis.Pool
-	pool, err = r.driver.Get(id)
-	if err != nil {
-		return
-	}
-
-	red := pool.Get()
-	defer pool.Put(red)
-
-	key := []byte(r.prefix + id)
-	var val uint8
-	if value {
-		val = 1
-	}
-
-	var results []interface{}
-	results, err = red.Multi().
-		Send("SETBIT", key, int(property), val).
-		Send("GET", key).
-		ExecPipeline(red)
-	if err != nil {
-		return
-	}
-
-	return results[1].([]byte), nil
-}
-
 func (r *redisStorage) Get(id string, property uint16) (exists bool, err error) {
 	var pool *redis.Pool
 	pool, err = r.driver.Get(id)
