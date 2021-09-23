@@ -56,13 +56,13 @@ func NewPool(option *Option) (pool *Pool) {
 				}
 
 				if len(option.Auth) > 0 {
-					if _, err := c.Do("AUTH", option.Auth); err != nil {
+					if _, err = c.Do("AUTH", option.Auth); err != nil {
 						_ = c.Close()
 						return nil, err
 					}
 				}
 
-				if _, err := c.Do("SELECT", option.Db); err != nil {
+				if _, err = c.Do("SELECT", option.Db); err != nil {
 					_ = c.Close()
 					return nil, err
 				}
@@ -104,29 +104,24 @@ func (r *Redis) Send(cmd string, args ...interface{}) (err error) {
 }
 
 //region 1.0 Key
-func (r *Redis) Exists(key []byte) (exists bool, err error) {
-	var val int
-	val, err = redigo.Int(r.conn.Do("EXISTS", key))
-	return val == boot.Success, err
+func (r *Redis) Exists(key []byte) (res int, err error) {
+	return redigo.Int(r.conn.Do("EXISTS", key))
 }
 
-func (r *Redis) Expire(key []byte, timeoutSecond int64) (ok bool, err error) {
-	_, err = redigo.Int(r.conn.Do("EXPIRE", key, timeoutSecond))
-	return err == nil, err
+func (r *Redis) Expire(key []byte, timeoutSecond int64) (res int, err error) {
+	return redigo.Int(r.conn.Do("EXPIRE", key, timeoutSecond))
 }
 
-func (r *Redis) ExpireAt(key []byte, unixTimestamp int64) (ok bool, err error) {
-	_, err = redigo.Int(r.conn.Do("EXPIREAT", key, unixTimestamp))
-	return err == nil, err
+func (r *Redis) ExpireAt(key []byte, unixTimestamp int64) (res int, err error) {
+	return redigo.Int(r.conn.Do("EXPIREAT", key, unixTimestamp))
 }
 
 func (r *Redis) Ttl(key []byte) (timeout int64, err error) {
 	return redigo.Int64(r.conn.Do("TTL", key))
 }
 
-func (r *Redis) Persist(key []byte) (ok bool, err error) {
-	_, err = redigo.Int(r.conn.Do("PERSIST", key))
-	return err == nil, err
+func (r *Redis) Persist(key []byte) (res int, err error) {
+	return redigo.Int(r.conn.Do("PERSIST", key))
 }
 
 func (r *Redis) Type(key []byte) (tp string, err error) {
