@@ -7,8 +7,12 @@ type Metric struct {
 	value atomic.Uint64
 }
 
-func (m *Metric) Add(val uint64) {
-	m.value.Incr(val)
+func (m *Metric) AddInt64(val int64) (newValue uint64) {
+	return m.value.Incr(uint64(val))
+}
+
+func (m *Metric) Add(val uint64) (newValue uint64) {
+	return m.value.Incr(val)
 }
 
 func (m *Metric) Set(val uint64) {
