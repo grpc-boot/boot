@@ -62,8 +62,8 @@ func TestGroup_Get(t *testing.T) {
 		t.Fatalf("want string, got %s", te)
 	}
 
-	var val int
-	val, err = r.GetInt(key)
+	var val int64
+	val, err = r.GetInt64(key)
 	if val != 15 {
 		t.Fatal("want true, got false")
 	}
@@ -73,7 +73,7 @@ func TestGroup_Get(t *testing.T) {
 		t.Fatal("want true, got false")
 	}
 
-	val, err = r.GetInt(key)
+	val, err = r.GetInt64(key)
 	if val == 15 {
 		t.Fatal("want false, got true")
 	}
