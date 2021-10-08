@@ -7,26 +7,20 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func Yaml(filePath string, out interface{}) {
+func Yaml(filePath string, out interface{}) (err error) {
 	conf, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		panic(err.Error())
+		return err
 	}
 
-	err = yaml.Unmarshal(conf, out)
-	if err != nil {
-		panic(err.Error())
-	}
+	return yaml.Unmarshal(conf, out)
 }
 
-func Json(filePath string, out interface{}) {
+func Json(filePath string, out interface{}) (err error) {
 	conf, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		panic(err.Error())
+		return err
 	}
 
-	err = json.Unmarshal(conf, out)
-	if err != nil {
-		panic(err.Error())
-	}
+	return json.Unmarshal(conf, out)
 }
