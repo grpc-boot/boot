@@ -22,7 +22,10 @@ type Conf struct {
 
 func init() {
 	conf = new(Conf)
-	boot.Yaml("./app.yml", conf)
+	err := boot.Yaml("./app.yml", conf)
+	if err != nil {
+		panic(err)
+	}
 
 	redisGroup = redis.NewGroup(conf.Storage, nil)
 	conf.Option.Storage = NewRedisPersonas(redisGroup, "")

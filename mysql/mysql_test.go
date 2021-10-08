@@ -37,7 +37,10 @@ type User struct {
 func init() {
 	config = &Config{}
 	//加载配置
-	boot.Yaml("app.yml", config)
+	err := boot.Yaml("app.yml", config)
+	if err != nil {
+		panic(err)
+	}
 
 	//初始化mysqlGroup
 	group = NewGroup(&config.Boot)
