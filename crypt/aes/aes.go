@@ -19,11 +19,14 @@ func NewAes(key string, iv string) (a *Aes, err error) {
 		return nil, err
 	}
 
+	if iv == "" {
+		iv = key[:b.BlockSize()]
+	}
+
 	a = &Aes{
 		iv:    []byte(iv),
 		block: b,
 	}
-
 	return
 }
 
