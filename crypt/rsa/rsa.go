@@ -56,7 +56,7 @@ func NewRsa(publicKey, privateKey string) (r *Rsa, err error) {
 func (r *Rsa) Encrypt(data []byte) ([]byte, error) {
 	blockLength := r.rsaPublicKey.N.BitLen()/8 - 11
 	if len(data) <= blockLength {
-		return rsa.EncryptPKCS1v15(rand.Reader, r.rsaPublicKey, []byte(data))
+		return rsa.EncryptPKCS1v15(rand.Reader, r.rsaPublicKey, data)
 	}
 
 	buffer := bytes.NewBufferString("")
