@@ -213,7 +213,7 @@ func isLostError(err *error) bool {
 func (g *Group) MasterExec(handler func(mPool *Pool) (interface{}, error)) (result interface{}, err error) {
 	for start := 0; start < g.masterLen; start++ {
 		index, pool := g.GetMaster()
-		result, err := handler(pool)
+		result, err = handler(pool)
 		if err == nil {
 			return result, nil
 		}
@@ -231,7 +231,7 @@ func (g *Group) MasterExec(handler func(mPool *Pool) (interface{}, error)) (resu
 func (g *Group) SlaveQuery(handler func(mPool *Pool) (interface{}, error)) (result interface{}, err error) {
 	for start := 0; start < g.slaveLen; start++ {
 		index, pool := g.GetSlave()
-		result, err := handler(pool)
+		result, err = handler(pool)
 		if err == nil {
 			return result, err
 		}
