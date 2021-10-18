@@ -224,6 +224,26 @@ func (r *Redis) Strlen(key interface{}) (length int, err error) {
 	return redigo.Int(r.conn.Do("STRLEN", key))
 }
 
+func (r *Redis) Incr(key interface{}) (newValue int64, err error) {
+	return redigo.Int64(r.conn.Do("INCR", key))
+}
+
+func (r *Redis) Decr(key interface{}) (newValue int64, err error) {
+	return redigo.Int64(r.conn.Do("DECR", key))
+}
+
+func (r *Redis) IncrBy(key interface{}, step int) (newValue int64, err error) {
+	return redigo.Int64(r.conn.Do("INCRBY", key, step))
+}
+
+func (r *Redis) DecrBy(key interface{}, step int) (newValue int64, err error) {
+	return redigo.Int64(r.conn.Do("DECRBY", key, step))
+}
+
+func (r *Redis) IncrByFloat(key interface{}, step float64) (newValue float64, err error) {
+	return redigo.Float64(r.conn.Do("INCRBYFLOAT", key, step))
+}
+
 //endregion
 
 //region 1.2 Bit
