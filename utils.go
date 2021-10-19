@@ -12,12 +12,10 @@ var (
 	ErrIpV4Address = errors.New(`invalid ip v4 address`)
 )
 
-// BenchmarkLong2Ip-8       6062264               199.9 ns/op            15 B/op          1 allocs/op
 func Long2Ip(ipVal uint32) string {
 	return fmt.Sprintf("%d.%d.%d.%d", ipVal>>24, ipVal<<8>>24, ipVal<<16>>24, ipVal<<24>>24)
 }
 
-// BenchmarkIp2Long-8       8377591               141.3 ns/op             0 B/op          0 allocs/op
 func Ip2Long(ip string) (ipVal uint32, err error) {
 	var (
 		val     uint32
