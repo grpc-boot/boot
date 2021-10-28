@@ -89,7 +89,7 @@ func (p *Pool) Delete(table string, obj interface{}) (result *ExecResult, err er
 	}
 
 	res, err := p.db.Exec(sqlStr, args...)
-	boot.ReleaseArgs(&args)
+
 	if err != nil {
 		return nil, err
 	}
