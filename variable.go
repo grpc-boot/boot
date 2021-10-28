@@ -18,12 +18,12 @@ var (
 		return argsPool.Get().([]interface{})
 	}
 
-	ReleaseArgs = func(args []interface{}) {
+	ReleaseArgs = func(args *[]interface{}) {
 		if args == nil {
 			return
 		}
 
-		args = args[:0]
-		argsPool.Put(args)
+		*args = (*args)[:0]
+		argsPool.Put(*args)
 	}
 )

@@ -5,6 +5,17 @@ import (
 	"testing"
 )
 
+func TestReleaseArgs(t *testing.T) {
+	args := AcquireArgs()
+
+	args = append(args, 5, 6)
+	t.Log(args)
+
+	ReleaseArgs(&args)
+
+	t.Fatal(args)
+}
+
 func TestIp2Long(t *testing.T) {
 	caseList := []string{
 		"256.12.12.12",

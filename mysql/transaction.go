@@ -2,7 +2,6 @@ package mysql
 
 import (
 	"database/sql"
-
 	"github.com/grpc-boot/boot"
 )
 
@@ -36,15 +35,24 @@ func (t *Transaction) Find(query *Query) (*sql.Rows, error) {
 	sqlStr, args := buildQuery(query)
 	defer func() {
 		ReleaseQuery(query)
-		boot.ReleaseArgs(*args)
+		boot.ReleaseArgs(&args)
 	}()
-	return t.tx.Query(sqlStr, *args...)
+	return t.tx.Query(sqlStr, args...)
 }
 
-func (t *Transaction) Insert(table string, columns map[string]interface{}) (result *ExecResult, err error) {
-	sqlStr, args := buildInsert(table, columns)
-	res, err := t.tx.Exec(sqlStr, *args...)
-	boot.ReleaseArgs(*args)
+func (t *Transaction) Insert(table string, row interface{}) (result *ExecResult, err error) {
+	var (
+		sqlStr string
+		args   []interface{}
+	)
+
+	sqlStr, args, err = buildInsert(table, row)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := t.tx.Exec(sqlStr, args...)
+	boot.ReleaseArgs(&args)
 	if err != nil {
 		return nil, err
 	}
@@ -63,9 +71,22 @@ func (t *Transaction) Insert(table string, columns map[string]interface{}) (resu
 	return
 }
 
-func (t *Transaction) BatchInsert(table string, rows []map[string]interface{}) (result *ExecResult, err error) {
-	sqlStr, args := buildBatchInsert(table, rows)
-	res, err := t.tx.Exec(sqlStr, *args...)
+func (t *Transaction) BatchInsert(table string, rows interface{}) (result *ExecResult, err error) {
+	var (
+		_, ok  = rows.([]map[string]interface{})
+		sqlStr string
+		args   []interface{}
+	)
+
+	if ok {
+		sqlStr, args = buildInsertByMap(table, rows.([]map[string]interface{})...)
+	} else {
+		sqlStr, args, err = BuildInsertByObj(table, rows)
+		if err != nil {
+			return nil, err
+		}
+	}
+	res, err := t.tx.Exec(sqlStr, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -81,8 +102,8 @@ func (t *Transaction) BatchInsert(table string, rows []map[string]interface{}) (
 
 func (t *Transaction) UpdateAll(table string, set map[string]interface{}, where map[string]interface{}) (result *ExecResult, err error) {
 	sqlStr, args := buildUpdateAll(table, set, where)
-	res, err := t.tx.Exec(sqlStr, *args...)
-	boot.ReleaseArgs(*args)
+	res, err := t.tx.Exec(sqlStr, args...)
+	boot.ReleaseArgs(&args)
 	if err != nil {
 		return nil, err
 	}
@@ -98,8 +119,8 @@ func (t *Transaction) UpdateAll(table string, set map[string]interface{}, where 
 
 func (t *Transaction) DeleteAll(table string, where map[string]interface{}) (result *ExecResult, err error) {
 	sqlStr, args := buildDeleteAll(table, where)
-	res, err := t.tx.Exec(sqlStr, *args...)
-	boot.ReleaseArgs(*args)
+	res, err := t.tx.Exec(sqlStr, args...)
+	boot.ReleaseArgs(&args)
 	if err != nil {
 		return nil, err
 	}

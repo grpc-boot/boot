@@ -320,19 +320,19 @@ func (g *Group) Find(query *Query, useMaster bool) (rows *sql.Rows, err error) {
 	)
 
 	defer func() {
-		boot.ReleaseArgs(*args)
+		boot.ReleaseArgs(&args)
 	}()
 
 	if useMaster {
 		result, err = g.MasterExec(func(mPool *Pool) (i interface{}, e error) {
-			return mPool.db.Query(sqlStr, *args...)
+			return mPool.db.Query(sqlStr, args...)
 		})
 
 		return result.(*sql.Rows), err
 	}
 
 	result, err = g.SlaveQuery(func(mPool *Pool) (i interface{}, e error) {
-		return mPool.db.Query(sqlStr, *args...)
+		return mPool.db.Query(sqlStr, args...)
 	})
 
 	return result.(*sql.Rows), err

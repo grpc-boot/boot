@@ -29,9 +29,9 @@ type Config struct {
 }
 
 type User struct {
-	Id        int64
-	NickName  string
-	CreatedAt int64
+	Id        int64  `bdb:"id,primary"`
+	NickName  string `bdb:"nickname"`
+	CreatedAt int64  `bdb:"createAt,required"`
 }
 
 func init() {
@@ -44,6 +44,44 @@ func init() {
 
 	//初始化mysqlGroup
 	group = NewGroup(&config.Boot)
+}
+
+func TestBuildUpdateByObj(t *testing.T) {
+	user := User{Id: 5}
+	sql, args, err := BuildUpdateByObj("user", user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(sql, args, err)
+
+	user.NickName = time.Now().String()
+	sql, args, err = BuildUpdateByObj("user", &user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(sql, args, err)
+}
+
+func TestBuildInsertByObj(t *testing.T) {
+	user := User{Id: 5}
+	sql, args, err := BuildInsertByObj("user", user)
+	t.Log(sql, args, err)
+
+	user.NickName = time.Now().String()
+	user.Id = 0
+	sql, args, err = BuildInsertByObj("user", &user)
+	t.Log(sql, args, err)
+
+	sql, args, err = BuildInsertByObj("user", []User{{
+		NickName:  time.Now().String(),
+		CreatedAt: time.Now().Unix(),
+	},
+		{
+			NickName:  time.Now().String(),
+			CreatedAt: time.Now().Unix(),
+		},
+	})
+	t.Log(sql, args, err)
 }
 
 func TestGroup_Insert(t *testing.T) {
