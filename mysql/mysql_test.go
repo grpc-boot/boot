@@ -13,8 +13,8 @@ import (
 /********************测试表结构***********************
 CREATE TABLE `user` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `user_name` varchar(32) DEFAULT '' COMMENT '用户名',
-  `add_time` int(10) unsigned DEFAULT '0' COMMENT '添加时间',
+  `nickname` varchar(32) DEFAULT '' COMMENT '用户名',
+  `created_at` int(10) unsigned DEFAULT '0' COMMENT '添加时间',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=uft8;
 */
@@ -29,9 +29,9 @@ type Config struct {
 }
 
 type User struct {
-	Id       int64
-	UserName string
-	AddTime  int64
+	Id        int64
+	NickName  string
+	CreatedAt int64
 }
 
 func init() {
@@ -49,8 +49,8 @@ func init() {
 func TestGroup_Insert(t *testing.T) {
 	current := time.Now()
 	result, err := group.Insert("`user`", map[string]interface{}{
-		"`user_name`": strconv.FormatInt(current.UnixNano(), 10),
-		"`add_time`":  current.Unix(),
+		"`nickname`":   strconv.FormatInt(current.UnixNano(), 10),
+		"`created_at`": current.Unix(),
 	})
 
 	if err != nil {
@@ -65,12 +65,12 @@ func TestGroup_Insert(t *testing.T) {
 func TestGroup_BatchInsert(t *testing.T) {
 	result, err := group.BatchInsert("`user`", []map[string]interface{}{
 		{
-			"`user_name`": strconv.FormatInt(time.Now().UnixNano(), 10),
-			"`add_time`":  time.Now().Unix(),
+			"`nickname`":   strconv.FormatInt(time.Now().UnixNano(), 10),
+			"`created_at`": time.Now().Unix(),
 		},
 		{
-			"`user_name`": strconv.FormatInt(time.Now().UnixNano(), 10),
-			"`add_time`":  time.Now().Unix(),
+			"`nickname`":   strconv.FormatInt(time.Now().UnixNano(), 10),
+			"`created_at`": time.Now().Unix(),
 		},
 	})
 
@@ -86,7 +86,7 @@ func TestGroup_BatchInsert(t *testing.T) {
 func TestGroup_UpdateAll(t *testing.T) {
 	result, err := group.UpdateAll("`user`",
 		map[string]interface{}{
-			"`user_name`": "u" + strconv.FormatInt(time.Now().Unix(), 10),
+			"`nickname`": "u" + strconv.FormatInt(time.Now().Unix(), 10),
 		},
 		map[string]interface{}{
 			"`id`": 2,
@@ -117,7 +117,7 @@ func TestGroup_SlaveQuery(t *testing.T) {
 	query := AcquireQuery()
 	defer ReleaseQuery(query)
 
-	rows, err := query.Select("id", "user_name", "add_time").
+	rows, err := query.Select("id", "nickname", "created_at").
 		From("user").
 		Where(map[string]interface{}{
 			"id": 1,
@@ -131,7 +131,7 @@ func TestGroup_SlaveQuery(t *testing.T) {
 
 	if rows.Next() {
 		user := &User{}
-		err := rows.Scan(&user.Id, &user.UserName, &user.AddTime)
+		err := rows.Scan(&user.Id, &user.NickName, &user.CreatedAt)
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -147,10 +147,10 @@ func TestGroup_MasterQuery(t *testing.T) {
 	query := AcquireQuery()
 	defer ReleaseQuery(query)
 
-	rows, err := query.Select("`id`", "`user_name`", "`add_time`").
+	rows, err := query.Select("`id`", "`nickname`", "`created_at`").
 		From("`user`").
 		Where(map[string]interface{}{
-			"`add_time` BETWEEN": []interface{}{
+			"`created_at` BETWEEN": []interface{}{
 				0,
 				time.Now().Unix(),
 			},
@@ -168,7 +168,7 @@ func TestGroup_MasterQuery(t *testing.T) {
 	}
 
 	user := &User{}
-	err = rows.Scan(&user.Id, &user.UserName, &user.AddTime)
+	err = rows.Scan(&user.Id, &user.NickName, &user.CreatedAt)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -191,9 +191,9 @@ func TestQueryIn(t *testing.T) {
 	userList := make([]User, 0, 3)
 	FormatRows(rows, func(fieldValue map[string][]byte) {
 		userList = append(userList, User{
-			Id:       boot.Bytes2Int64(fieldValue["id"]),
-			UserName: string(fieldValue["user_name"]),
-			AddTime:  boot.Bytes2Int64(fieldValue["add_time"]),
+			Id:        boot.Bytes2Int64(fieldValue["id"]),
+			NickName:  string(fieldValue["nickname"]),
+			CreatedAt: boot.Bytes2Int64(fieldValue["created_at"]),
 		})
 	})
 }
@@ -201,13 +201,13 @@ func TestQueryIn(t *testing.T) {
 func TestQueryRange(t *testing.T) {
 	query := AcquireQuery()
 	defer ReleaseQuery(query)
-	rows, err := query.Select("`id`, `user_name`, `add_time`").
+	rows, err := query.Select("`id`, `nickname`, `created_at`").
 		From("`user`").
 		Where(map[string]interface{}{
-			"`add_time` <=": time.Now().Unix(),
-			"`add_time` >":  1,
+			"`created_at` <=": time.Now().Unix(),
+			"`created_at` >":  1,
 		}).
-		Order("`add_time` DESC", "`id` DESC").
+		Order("`created_at` DESC", "`id` DESC").
 		Limit(0, 15).
 		QueryByGroup(group, false)
 	if err != nil {
@@ -225,7 +225,7 @@ func TestQueryLike(t *testing.T) {
 	defer ReleaseQuery(query)
 	rows, err := query.From("`user`").
 		Where(map[string]interface{}{
-			"`user_name` LIKE": "u%",
+			"`nickname` LIKE": "u%",
 		}).
 		QueryByGroup(group, false)
 	if err != nil {
@@ -250,7 +250,7 @@ func TestGroupTransaction(t *testing.T) {
 	}
 
 	_, err = trans.UpdateAll("`user`", map[string]interface{}{
-		"add_time": time.Now().Unix(),
+		"created_at": time.Now().Unix(),
 	}, map[string]interface{}{
 		"id": 2,
 	})
@@ -284,4 +284,5 @@ func TestGroupTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
+	t.Fatal(group.GetBadPool(true), group.GetBadPool(false))
 }

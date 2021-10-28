@@ -117,8 +117,8 @@ func (q *Query) QueryByGroup(group *Group, useMaster bool) (*sql.Rows, error) {
 	return group.Find(q, useMaster)
 }
 
-func buildWhere(where *map[string]interface{}) (condition []byte, arguments *[]interface{}) {
-	if len(*where) < 1 {
+func buildWhere(where map[string]interface{}) (condition []byte, arguments *[]interface{}) {
+	if len(where) < 1 {
 		return
 	}
 
@@ -131,7 +131,7 @@ func buildWhere(where *map[string]interface{}) (condition []byte, arguments *[]i
 	)
 
 	args := boot.AcquireArgs()
-	for field, value := range *where {
+	for field, value := range where {
 		operator = "="
 		position = strings.Index(field, " ")
 		if position > 0 {
@@ -175,7 +175,7 @@ func buildWhere(where *map[string]interface{}) (condition []byte, arguments *[]i
 func buildQuery(q *Query) (sql string, arguments *[]interface{}) {
 	where := ""
 
-	condition, args := buildWhere(&q.where)
+	condition, args := buildWhere(q.where)
 	if len(condition) > 0 {
 		where = string(condition)
 	}
@@ -183,14 +183,14 @@ func buildQuery(q *Query) (sql string, arguments *[]interface{}) {
 	return "SELECT " + q.columns + " FROM " + q.table + where + q.group + q.having + q.order + " LIMIT " + strconv.FormatInt(q.offset, 10) + "," + strconv.FormatInt(q.limit, 10), args
 }
 
-func buildInsert(table string, columns *map[string]interface{}) (sql string, arguments *[]interface{}) {
+func buildInsert(table string, columns map[string]interface{}) (sql string, arguments *[]interface{}) {
 	sqlBuffer := bytes.NewBufferString(fmt.Sprintf("INSERT INTO %s(", table))
 	args := boot.AcquireArgs()
 
-	values := make([]byte, 0, 7+2*len(*columns))
+	values := make([]byte, 0, 7+2*len(columns))
 	values = append(values, []byte("VALUES(")...)
 
-	for field, arg := range *columns {
+	for field, arg := range columns {
 		if len(values) > 7 {
 			sqlBuffer.WriteByte(',')
 		}
@@ -207,14 +207,14 @@ func buildInsert(table string, columns *map[string]interface{}) (sql string, arg
 	return sqlBuffer.String(), &args
 }
 
-func buildBatchInsert(table string, rows *[]map[string]interface{}) (sql string, arguments *[]interface{}) {
-	fields := make([]string, 0, len((*rows)[0]))
-	args := make([]interface{}, 0, len(*rows)*len((*rows)[0]))
-	values := make([]string, 0, len(*rows))
+func buildBatchInsert(table string, rows []map[string]interface{}) (sql string, arguments *[]interface{}) {
+	fields := make([]string, 0, len((rows)[0]))
+	args := make([]interface{}, 0, len(rows)*len((rows)[0]))
+	values := make([]string, 0, len(rows))
 
-	value := make([]byte, 0, 1+2*len((*rows)[0]))
+	value := make([]byte, 0, 1+2*len((rows)[0]))
 	value = append(value, '(')
-	for field, arg := range (*rows)[0] {
+	for field, arg := range (rows)[0] {
 		fields = append(fields, field)
 		value = append(value, '?', ',')
 		args = append(args, arg)
@@ -223,8 +223,8 @@ func buildBatchInsert(table string, rows *[]map[string]interface{}) (sql string,
 
 	values = append(values, string(value))
 
-	for start := 1; start < len(*rows); start++ {
-		for _, arg := range (*rows)[start] {
+	for start := 1; start < len(rows); start++ {
+		for _, arg := range (rows)[start] {
 			args = append(args, arg)
 		}
 		values = append(values, string(value))
@@ -233,11 +233,11 @@ func buildBatchInsert(table string, rows *[]map[string]interface{}) (sql string,
 	return fmt.Sprintf("INSERT INTO %s(%s)VALUES%s", table, strings.Join(fields, ","), strings.Join(values, ",")), &args
 }
 
-func buildUpdateAll(table string, set *map[string]interface{}, where *map[string]interface{}) (sql string, arguments *[]interface{}) {
+func buildUpdateAll(table string, set map[string]interface{}, where map[string]interface{}) (sql string, arguments *[]interface{}) {
 	sqlBuffer := bytes.NewBufferString(fmt.Sprintf("UPDATE %s SET ", table))
 	args := boot.AcquireArgs()
 	var num = 0
-	for field, arg := range *set {
+	for field, arg := range set {
 		if num > 0 {
 			sqlBuffer.WriteByte(',')
 		} else {
@@ -248,7 +248,7 @@ func buildUpdateAll(table string, set *map[string]interface{}, where *map[string
 		args = append(args, arg)
 	}
 
-	if len(*where) > 0 {
+	if len(where) > 0 {
 		condition, params := buildWhere(where)
 		sqlBuffer.Write(condition)
 		args = append(args, *params...)
@@ -258,11 +258,11 @@ func buildUpdateAll(table string, set *map[string]interface{}, where *map[string
 	return sqlBuffer.String(), &args
 }
 
-func buildDeleteAll(table string, where *map[string]interface{}) (sql string, arguments *[]interface{}) {
+func buildDeleteAll(table string, where map[string]interface{}) (sql string, arguments *[]interface{}) {
 	sqlBuffer := bytes.NewBufferString("DELETE FROM ")
 	sqlBuffer.Write([]byte(table))
 
-	if len(*where) > 0 {
+	if len(where) > 0 {
 		condition, args := buildWhere(where)
 
 		sqlBuffer.Write(condition)

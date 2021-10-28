@@ -41,7 +41,7 @@ func (t *Transaction) Find(query *Query) (*sql.Rows, error) {
 	return t.tx.Query(sqlStr, *args...)
 }
 
-func (t *Transaction) Insert(table string, columns *map[string]interface{}) (result *ExecResult, err error) {
+func (t *Transaction) Insert(table string, columns map[string]interface{}) (result *ExecResult, err error) {
 	sqlStr, args := buildInsert(table, columns)
 	res, err := t.tx.Exec(sqlStr, *args...)
 	boot.ReleaseArgs(*args)
@@ -63,7 +63,7 @@ func (t *Transaction) Insert(table string, columns *map[string]interface{}) (res
 	return
 }
 
-func (t *Transaction) BatchInsert(table string, rows *[]map[string]interface{}) (result *ExecResult, err error) {
+func (t *Transaction) BatchInsert(table string, rows []map[string]interface{}) (result *ExecResult, err error) {
 	sqlStr, args := buildBatchInsert(table, rows)
 	res, err := t.tx.Exec(sqlStr, *args...)
 	if err != nil {
@@ -80,7 +80,7 @@ func (t *Transaction) BatchInsert(table string, rows *[]map[string]interface{}) 
 }
 
 func (t *Transaction) UpdateAll(table string, set map[string]interface{}, where map[string]interface{}) (result *ExecResult, err error) {
-	sqlStr, args := buildUpdateAll(table, &set, &where)
+	sqlStr, args := buildUpdateAll(table, set, where)
 	res, err := t.tx.Exec(sqlStr, *args...)
 	boot.ReleaseArgs(*args)
 	if err != nil {
@@ -97,7 +97,7 @@ func (t *Transaction) UpdateAll(table string, set map[string]interface{}, where 
 }
 
 func (t *Transaction) DeleteAll(table string, where map[string]interface{}) (result *ExecResult, err error) {
-	sqlStr, args := buildDeleteAll(table, &where)
+	sqlStr, args := buildDeleteAll(table, where)
 	res, err := t.tx.Exec(sqlStr, *args...)
 	boot.ReleaseArgs(*args)
 	if err != nil {

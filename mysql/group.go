@@ -5,11 +5,12 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"log"
 	"net"
-	"sync/atomic"
 	"time"
 
 	"github.com/grpc-boot/boot"
+	"github.com/grpc-boot/boot/atomic"
 )
 
 var (
@@ -28,8 +29,8 @@ type Group struct {
 	masters map[int]*Pool
 	slaves  map[int]*Pool
 
-	masterBadPool map[int]*int64
-	slaveBadPool  map[int]*int64
+	masterBadPool map[int]*atomic.Int64
+	slaveBadPool  map[int]*atomic.Int64
 
 	retryInterval int64
 	masterLen     int
@@ -45,8 +46,8 @@ func NewGroup(groupOption *GroupOption) *Group {
 		masterLen:     len(groupOption.Masters),
 		slaveLen:      len(groupOption.Slaves),
 		retryInterval: groupOption.RetryInterval,
-		masterBadPool: make(map[int]*int64, len(groupOption.Masters)),
-		slaveBadPool:  make(map[int]*int64, len(groupOption.Slaves)),
+		masterBadPool: make(map[int]*atomic.Int64, len(groupOption.Masters)),
+		slaveBadPool:  make(map[int]*atomic.Int64, len(groupOption.Slaves)),
 	}
 
 	group.masters = make(map[int]*Pool, group.masterLen)
@@ -59,8 +60,7 @@ func NewGroup(groupOption *GroupOption) *Group {
 		}
 
 		group.masters[index] = pool
-		var badTime int64
-		group.masterBadPool[index] = &badTime
+		group.masterBadPool[index] = &atomic.Int64{}
 	}
 
 	for index, _ := range groupOption.Slaves {
@@ -70,8 +70,7 @@ func NewGroup(groupOption *GroupOption) *Group {
 		}
 
 		group.slaves[index] = pool
-		var badTime int64
-		group.slaveBadPool[index] = &badTime
+		group.slaveBadPool[index] = &atomic.Int64{}
 	}
 
 	return group
@@ -85,16 +84,30 @@ func (g *Group) down(index int, isMaster bool) {
 	g.downSlave(index)
 }
 
+func (g *Group) up(index int, isMaster bool) {
+	if isMaster {
+		g.upMaster(index)
+		return
+	}
+	g.upSlave(index)
+}
+
 func (g *Group) downMaster(index int) {
 	if index >= g.masterLen {
 		return
 	}
 
-	old := atomic.LoadInt64(g.masterBadPool[index])
-	if old > 0 {
+	if g.masterBadPool[index].Get() > 0 {
 		return
 	}
-	atomic.CompareAndSwapInt64(g.masterBadPool[index], 0, time.Now().Unix())
+	g.masterBadPool[index].Cas(0, time.Now().Unix())
+}
+
+func (g *Group) upMaster(index int) {
+	if index >= g.masterLen {
+		return
+	}
+	g.masterBadPool[index].Set(0)
 }
 
 func (g *Group) downSlave(index int) {
@@ -102,19 +115,24 @@ func (g *Group) downSlave(index int) {
 		return
 	}
 
-	old := atomic.LoadInt64(g.slaveBadPool[index])
-	if old > 0 {
+	if g.slaveBadPool[index].Get() > 0 {
 		return
 	}
-	atomic.CompareAndSwapInt64(g.slaveBadPool[index], 0, time.Now().Unix())
+	g.slaveBadPool[index].Cas(0, time.Now().Unix())
+}
+
+func (g *Group) upSlave(index int) {
+	if index >= g.slaveLen {
+		return
+	}
+	g.slaveBadPool[index].Set(0)
 }
 
 func (g *Group) GetBadPool(isMaster bool) (list []int) {
 	if isMaster {
 		list = make([]int, 0, g.masterLen)
 		for index := 0; index < g.masterLen; index++ {
-			badTime := atomic.LoadInt64(g.masterBadPool[index])
-			if badTime > 0 {
+			if g.masterBadPool[index].Get() > 0 {
 				list = append(list, index)
 			}
 		}
@@ -123,55 +141,56 @@ func (g *Group) GetBadPool(isMaster bool) (list []int) {
 
 	list = make([]int, 0, g.slaveLen)
 	for index := 0; index < g.slaveLen; index++ {
-		badTime := atomic.LoadInt64(g.slaveBadPool[index])
-		if badTime > 0 {
+		if g.slaveBadPool[index].Get() > 0 {
 			list = append(list, index)
 		}
 	}
 	return
 }
 
-func (g *Group) GetMaster() (index int, mPoll *Pool) {
+func (g *Group) GetMaster() (index int, mPoll *Pool, badTime int64) {
 	if g.masterLen == 1 {
-		return 0, g.masters[0]
+		return 0, g.masters[0], g.masterBadPool[0].Get()
 	}
 
-	for index, mPoll := range g.masters {
-		badTime := atomic.LoadInt64(g.masterBadPool[index])
+	current := time.Now().Unix()
+	for index, mPoll = range g.masters {
+		badTime = g.masterBadPool[index].Get()
 		if badTime == 0 {
-			return index, mPoll
+			return index, mPoll, badTime
 		}
 
-		if badTime+g.retryInterval < time.Now().Unix() {
-			atomic.StoreInt64(g.masterBadPool[index], 0)
-			return index, mPoll
+		if badTime+g.retryInterval < current {
+			g.masterBadPool[index].Set(current)
+			return index, mPoll, badTime
 		}
 	}
 
-	return 0, g.masters[0]
+	return 0, g.masters[0], g.masterBadPool[0].Get()
 }
 
-func (g *Group) GetSlave() (index int, mPoll *Pool) {
+func (g *Group) GetSlave() (index int, mPoll *Pool, badTime int64) {
 	if g.slaveLen == 1 {
-		return 0, g.slaves[0]
+		return 0, g.slaves[0], g.slaveBadPool[0].Get()
 	}
 
-	for index, mPoll := range g.slaves {
-		badTime := atomic.LoadInt64(g.slaveBadPool[index])
+	current := time.Now().Unix()
+	for index, mPoll = range g.slaves {
+		badTime = g.slaveBadPool[index].Get()
 		if badTime == 0 {
-			return index, mPoll
+			return index, mPoll, badTime
 		}
 
-		if badTime+g.retryInterval < time.Now().Unix() {
-			atomic.StoreInt64(g.slaveBadPool[index], 0)
-			return index, mPoll
+		if badTime+g.retryInterval < current {
+			g.slaveBadPool[index].Set(current)
+			return index, mPoll, badTime
 		}
 	}
 
-	return 0, g.slaves[0]
+	return 0, g.slaves[0], g.slaveBadPool[0].Get()
 }
 
-func (g *Group) SelectPool(isMaster bool) (index int, mPool *Pool) {
+func (g *Group) SelectPool(isMaster bool) (index int, mPool *Pool, badTime int64) {
 	if isMaster {
 		return g.GetMaster()
 	}
@@ -198,29 +217,37 @@ func (g *Group) Begin() (trans *Transaction, err error) {
 	return newTx(tx.(*sql.Tx)), err
 }
 
-func isLostError(err *error) bool {
-	if *err == driver.ErrBadConn {
+func (g *Group) isLostError(err error) bool {
+	if err == driver.ErrBadConn {
 		return true
 	}
 
-	if errVal, ok := (*err).(*net.OpError); ok {
-		return errVal.Op == "dial" && errVal.Timeout()
+	if errVal, ok := err.(*net.OpError); ok {
+		log.Printf("exec sql error:%s", errVal.Error())
+		return true
 	}
-
 	return false
 }
 
 func (g *Group) MasterExec(handler func(mPool *Pool) (interface{}, error)) (result interface{}, err error) {
 	for start := 0; start < g.masterLen; start++ {
-		index, pool := g.GetMaster()
+		index, pool, badTime := g.GetMaster()
 		result, err = handler(pool)
 		if err == nil {
+			if badTime > 0 {
+				g.upMaster(index)
+			}
+
 			return result, nil
 		}
 
-		if isLostError(&err) {
+		if g.isLostError(err) {
 			g.downMaster(index)
 			continue
+		}
+
+		if badTime > 0 {
+			g.upMaster(index)
 		}
 
 		return result, err
@@ -230,17 +257,24 @@ func (g *Group) MasterExec(handler func(mPool *Pool) (interface{}, error)) (resu
 
 func (g *Group) SlaveQuery(handler func(mPool *Pool) (interface{}, error)) (result interface{}, err error) {
 	for start := 0; start < g.slaveLen; start++ {
-		index, pool := g.GetSlave()
+		index, pool, badTime := g.GetSlave()
 		result, err = handler(pool)
 		if err == nil {
+			if badTime > 0 {
+				g.upSlave(index)
+			}
+
 			return result, err
 		}
 
-		if isLostError(&err) {
+		if g.isLostError(err) {
 			g.downSlave(index)
 			continue
 		}
 
+		if badTime > 0 {
+			g.upSlave(index)
+		}
 		return result, err
 	}
 
@@ -249,7 +283,7 @@ func (g *Group) SlaveQuery(handler func(mPool *Pool) (interface{}, error)) (resu
 
 func (g *Group) Insert(table string, columns map[string]interface{}) (result *ExecResult, err error) {
 	res, err := g.MasterExec(func(mPool *Pool) (i interface{}, e error) {
-		return mPool.Insert(table, &columns)
+		return mPool.Insert(table, columns)
 	})
 
 	return res.(*ExecResult), err
@@ -257,7 +291,7 @@ func (g *Group) Insert(table string, columns map[string]interface{}) (result *Ex
 
 func (g *Group) BatchInsert(table string, rows []map[string]interface{}) (result *ExecResult, err error) {
 	res, err := g.MasterExec(func(mPool *Pool) (i interface{}, e error) {
-		return mPool.BatchInsert(table, &rows)
+		return mPool.BatchInsert(table, rows)
 	})
 
 	return res.(*ExecResult), err
@@ -280,20 +314,24 @@ func (g *Group) DeleteAll(table string, where map[string]interface{}) (result *E
 }
 
 func (g *Group) Find(query *Query, useMaster bool) (rows *sql.Rows, err error) {
-	sqlStr, args := buildQuery(query)
+	var (
+		result       interface{}
+		sqlStr, args = buildQuery(query)
+	)
+
 	defer func() {
 		boot.ReleaseArgs(*args)
 	}()
 
 	if useMaster {
-		result, err := g.MasterExec(func(mPool *Pool) (i interface{}, e error) {
+		result, err = g.MasterExec(func(mPool *Pool) (i interface{}, e error) {
 			return mPool.db.Query(sqlStr, *args...)
 		})
 
 		return result.(*sql.Rows), err
 	}
 
-	result, err := g.SlaveQuery(func(mPool *Pool) (i interface{}, e error) {
+	result, err = g.SlaveQuery(func(mPool *Pool) (i interface{}, e error) {
 		return mPool.db.Query(sqlStr, *args...)
 	})
 

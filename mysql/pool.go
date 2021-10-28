@@ -78,7 +78,7 @@ func (p *Pool) Find(query *Query) (*sql.Rows, error) {
 	return p.db.Query(sqlStr, *args...)
 }
 
-func (p *Pool) Insert(table string, columns *map[string]interface{}) (result *ExecResult, err error) {
+func (p *Pool) Insert(table string, columns map[string]interface{}) (result *ExecResult, err error) {
 	sqlStr, args := buildInsert(table, columns)
 	res, err := p.db.Exec(sqlStr, *args...)
 	boot.ReleaseArgs(*args)
@@ -100,7 +100,7 @@ func (p *Pool) Insert(table string, columns *map[string]interface{}) (result *Ex
 	return
 }
 
-func (p *Pool) BatchInsert(table string, rows *[]map[string]interface{}) (result *ExecResult, err error) {
+func (p *Pool) BatchInsert(table string, rows []map[string]interface{}) (result *ExecResult, err error) {
 	sqlStr, args := buildBatchInsert(table, rows)
 	res, err := p.db.Exec(sqlStr, *args...)
 	if err != nil {
@@ -117,7 +117,7 @@ func (p *Pool) BatchInsert(table string, rows *[]map[string]interface{}) (result
 }
 
 func (p *Pool) UpdateAll(table string, set map[string]interface{}, where map[string]interface{}) (result *ExecResult, err error) {
-	sqlStr, args := buildUpdateAll(table, &set, &where)
+	sqlStr, args := buildUpdateAll(table, set, where)
 	res, err := p.db.Exec(sqlStr, *args...)
 	boot.ReleaseArgs(*args)
 	if err != nil {
@@ -134,7 +134,7 @@ func (p *Pool) UpdateAll(table string, set map[string]interface{}, where map[str
 }
 
 func (p *Pool) DeleteAll(table string, where map[string]interface{}) (result *ExecResult, err error) {
-	sqlStr, args := buildDeleteAll(table, &where)
+	sqlStr, args := buildDeleteAll(table, where)
 	res, err := p.db.Exec(sqlStr, *args...)
 	boot.ReleaseArgs(*args)
 	if err != nil {

@@ -2,6 +2,7 @@ package atomic
 
 import (
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/grpc-boot/boot"
@@ -63,4 +64,15 @@ func TestAcquire_Acquire(t *testing.T) {
 	if !lock.IsRelease() {
 		t.Fatal("want false, got true")
 	}
+}
+
+func TestInt64_Set(t *testing.T) {
+	var cc = map[string]*Int64{
+		"t": &Int64{},
+	}
+
+	t.Log(cc["t"].Get())
+
+	cc["t"].Set(time.Now().Unix())
+	t.Fatal(cc["t"].Get())
 }
