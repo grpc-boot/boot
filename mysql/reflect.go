@@ -21,13 +21,70 @@ var (
 	ErrNotFoundPrimaryField = errors.New(`failed to found primary field. Please configure the primary on bdb tag correctly`)
 )
 
-func BuildDeleteByObj(table string, row interface{}) (sqlStr string, args []interface{}) {
-	return
+func BuildDeleteByReflect(table string, obj interface{}) (sqlStr string, args []interface{}, err error) {
+	var (
+		value     = reflect.ValueOf(obj)
+		sqlBuffer = bytes.NewBuffer(nil)
+	)
+
+	if value.Kind() == reflect.Ptr {
+		value = value.Elem()
+	}
+
+	if value.Kind() != reflect.Struct {
+		return
+	}
+
+	var (
+		t          = value.Type()
+		fieldCount = value.NumField()
+
+		dbField   string
+		isPrimary bool
+		where     = make(map[string]interface{}, 2)
+	)
+
+	//寻找数据库字段和值
+	for i := 0; i < fieldCount; i++ {
+		dbField = t.Field(i).Tag.Get(tagName)
+		isPrimary = false
+
+		if dbField == "" {
+			continue
+		}
+
+		tags := strings.Split(dbField, ",")
+		dbField = "`" + tags[0] + "`"
+		for _, val := range tags {
+			if strings.TrimSpace(val) == primary {
+				isPrimary = true
+			}
+		}
+
+		if isPrimary {
+			where[dbField] = value.Field(i).Interface()
+			continue
+		}
+	}
+
+	//没有找到主键
+	if len(where) < 1 {
+		return "", nil, ErrNotFoundPrimaryField
+	}
+
+	whereBytes, a := buildWhere(where)
+	sqlBuffer.WriteString("DELETE FROM ")
+	sqlBuffer.WriteByte('`')
+	sqlBuffer.WriteString(table)
+	sqlBuffer.WriteByte('`')
+	sqlBuffer.Write(whereBytes)
+
+	return sqlBuffer.String(), a, nil
 }
 
-func BuildUpdateByObj(table string, row interface{}) (sqlStr string, args []interface{}, err error) {
+func BuildUpdateByReflect(table string, obj interface{}) (sqlStr string, args []interface{}, err error) {
 	var (
-		value     = reflect.ValueOf(row)
+		value     = reflect.ValueOf(obj)
 		sqlBuffer = bytes.NewBuffer(nil)
 	)
 
@@ -107,7 +164,7 @@ func BuildUpdateByObj(table string, row interface{}) (sqlStr string, args []inte
 	return sqlBuffer.String(), args, nil
 }
 
-func BuildInsertByObj(table string, rows interface{}) (sql string, args []interface{}, err error) {
+func BuildInsertByReflect(table string, rows interface{}) (sql string, args []interface{}, err error) {
 	var (
 		vRows  = reflect.ValueOf(rows)
 		values []reflect.Value

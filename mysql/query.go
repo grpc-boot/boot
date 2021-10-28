@@ -193,7 +193,7 @@ func buildInsert(table string, row interface{}) (sql string, arguments []interfa
 	if ok {
 		sqlStr, args = buildInsertByMap(table, columns)
 	} else {
-		sqlStr, args, err = BuildInsertByObj(table, row)
+		sqlStr, args, err = BuildInsertByReflect(table, row)
 		if err != nil {
 			return "", nil, err
 		}

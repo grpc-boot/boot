@@ -81,7 +81,7 @@ func (t *Transaction) BatchInsert(table string, rows interface{}) (result *ExecR
 	if ok {
 		sqlStr, args = buildInsertByMap(table, rows.([]map[string]interface{})...)
 	} else {
-		sqlStr, args, err = BuildInsertByObj(table, rows)
+		sqlStr, args, err = BuildInsertByReflect(table, rows)
 		if err != nil {
 			return nil, err
 		}

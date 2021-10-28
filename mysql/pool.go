@@ -78,6 +78,36 @@ func (p *Pool) Find(query *Query) (*sql.Rows, error) {
 	return p.db.Query(sqlStr, args...)
 }
 
+func (p *Pool) Delete(table string, obj interface{}) (result *ExecResult, err error) {
+	var (
+		sqlStr string
+		args   []interface{}
+	)
+	sqlStr, args, err = BuildDeleteByReflect(table, obj)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := p.db.Exec(sqlStr, args...)
+	boot.ReleaseArgs(&args)
+	if err != nil {
+		return nil, err
+	}
+
+	result = &ExecResult{}
+	result.AffectedRows, err = res.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+
+	result.LastInsertId, err = res.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	return
+}
+
 func (p *Pool) Insert(table string, row interface{}) (result *ExecResult, err error) {
 	var (
 		sqlStr string
@@ -119,7 +149,7 @@ func (p *Pool) BatchInsert(table string, rows interface{}) (result *ExecResult, 
 	if ok {
 		sqlStr, args = buildInsertByMap(table, rows.([]map[string]interface{})...)
 	} else {
-		sqlStr, args, err = BuildInsertByObj(table, rows)
+		sqlStr, args, err = BuildInsertByReflect(table, rows)
 		if err != nil {
 			return nil, err
 		}

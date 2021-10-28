@@ -34,6 +34,10 @@ type User struct {
 	CreatedAt int64  `bdb:"createAt,required"`
 }
 
+func (u User) TableName() string {
+	return `user`
+}
+
 func init() {
 	config = &Config{}
 	//加载配置
@@ -46,33 +50,17 @@ func init() {
 	group = NewGroup(&config.Boot)
 }
 
-func TestBuildUpdateByObj(t *testing.T) {
+func TestBuildInsertByReflect(t *testing.T) {
 	user := User{Id: 5}
-	sql, args, err := BuildUpdateByObj("user", user)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Log(sql, args, err)
-
-	user.NickName = time.Now().String()
-	sql, args, err = BuildUpdateByObj("user", &user)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Log(sql, args, err)
-}
-
-func TestBuildInsertByObj(t *testing.T) {
-	user := User{Id: 5}
-	sql, args, err := BuildInsertByObj("user", user)
+	sql, args, err := BuildInsertByReflect(user.TableName(), user)
 	t.Log(sql, args, err)
 
 	user.NickName = time.Now().String()
 	user.Id = 0
-	sql, args, err = BuildInsertByObj("user", &user)
+	sql, args, err = BuildInsertByReflect(user.TableName(), &user)
 	t.Log(sql, args, err)
 
-	sql, args, err = BuildInsertByObj("user", []User{{
+	sql, args, err = BuildInsertByReflect(user.TableName(), []User{{
 		NickName:  time.Now().String(),
 		CreatedAt: time.Now().Unix(),
 	},
@@ -81,6 +69,31 @@ func TestBuildInsertByObj(t *testing.T) {
 			CreatedAt: time.Now().Unix(),
 		},
 	})
+	t.Log(sql, args, err)
+}
+
+func TestBuildDeleteByReflect(t *testing.T) {
+	user := User{Id: 5}
+	sql, args, err := BuildDeleteByReflect(user.TableName(), user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Fatal(sql, args, err)
+}
+
+func TestBuildUpdateByReflect(t *testing.T) {
+	user := User{Id: 5}
+	sql, args, err := BuildUpdateByReflect(user.TableName(), user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(sql, args, err)
+
+	user.NickName = time.Now().String()
+	sql, args, err = BuildUpdateByReflect(user.TableName(), &user)
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Log(sql, args, err)
 }
 
