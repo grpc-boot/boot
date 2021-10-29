@@ -78,46 +78,13 @@ func (p *Pool) Find(query *Query) (*sql.Rows, error) {
 	return p.db.Query(sqlStr, args...)
 }
 
-func (p *Pool) Delete(table string, obj interface{}) (result *ExecResult, err error) {
-	var (
-		sqlStr string
-		args   []interface{}
-	)
-	sqlStr, args, err = BuildDeleteByReflect(table, obj)
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := p.db.Exec(sqlStr, args...)
-
-	if err != nil {
-		return nil, err
-	}
-
-	result = &ExecResult{}
-	result.AffectedRows, err = res.RowsAffected()
-	if err != nil {
-		return nil, err
-	}
-
-	result.LastInsertId, err = res.LastInsertId()
-	if err != nil {
-		return nil, err
-	}
-
-	return
-}
-
-func (p *Pool) Insert(table string, row interface{}) (result *ExecResult, err error) {
+func (p *Pool) Insert(table string, row map[string]interface{}) (result *ExecResult, err error) {
 	var (
 		sqlStr string
 		args   []interface{}
 	)
 
-	sqlStr, args, err = buildInsert(table, row)
-	if err != nil {
-		return nil, err
-	}
+	sqlStr, args = buildInsertByMap(table, row)
 
 	res, err := p.db.Exec(sqlStr, args...)
 	boot.ReleaseArgs(&args)
@@ -139,21 +106,13 @@ func (p *Pool) Insert(table string, row interface{}) (result *ExecResult, err er
 	return
 }
 
-func (p *Pool) BatchInsert(table string, rows interface{}) (result *ExecResult, err error) {
+func (p *Pool) BatchInsert(table string, rows []map[string]interface{}) (result *ExecResult, err error) {
 	var (
-		_, ok  = rows.([]map[string]interface{})
 		sqlStr string
 		args   []interface{}
 	)
 
-	if ok {
-		sqlStr, args = buildInsertByMap(table, rows.([]map[string]interface{})...)
-	} else {
-		sqlStr, args, err = BuildInsertByReflect(table, rows)
-		if err != nil {
-			return nil, err
-		}
-	}
+	sqlStr, args = buildInsertByMap(table, rows...)
 
 	res, err := p.db.Exec(sqlStr, args...)
 	if err != nil {
@@ -219,4 +178,85 @@ func (p *Pool) BeginTx(ctx context.Context, opts *sql.TxOptions) (trans *Transac
 	}
 
 	return newTx(tx), err
+}
+
+func (p *Pool) InsertObj(obj interface{}) (result *ExecResult, err error) {
+	var (
+		sqlStr string
+		args   []interface{}
+	)
+
+	sqlStr, args, err = BuildInsertByObj(obj)
+	if err != nil {
+		return
+	}
+
+	res, err := p.db.Exec(sqlStr, args...)
+	boot.ReleaseArgs(&args)
+	if err != nil {
+		return nil, err
+	}
+
+	result = &ExecResult{}
+	result.AffectedRows, err = res.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+
+	result.LastInsertId, err = res.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	return
+}
+
+func (p *Pool) DeleteObj(obj interface{}) (result *ExecResult, err error) {
+	var (
+		sqlStr string
+		args   []interface{}
+	)
+
+	sqlStr, args, err = BuildDeleteByObj(obj)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := p.db.Exec(sqlStr, args...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	result = &ExecResult{}
+	result.AffectedRows, err = res.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	return
+}
+
+func (p *Pool) UpdateObj(obj interface{}) (result *ExecResult, err error) {
+	var (
+		sqlStr string
+		args   []interface{}
+	)
+
+	sqlStr, args, err = BuildUpdateByObj(obj)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := p.db.Exec(sqlStr, args...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	result = &ExecResult{}
+	result.AffectedRows, err = res.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	return
 }

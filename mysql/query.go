@@ -183,25 +183,6 @@ func buildQuery(q *Query) (sql string, arguments []interface{}) {
 	return "SELECT " + q.columns + " FROM " + q.table + where + q.group + q.having + q.order + " LIMIT " + strconv.FormatInt(q.offset, 10) + "," + strconv.FormatInt(q.limit, 10), args
 }
 
-func buildInsert(table string, row interface{}) (sql string, arguments []interface{}, err error) {
-	var (
-		sqlStr      string
-		args        []interface{}
-		columns, ok = row.(map[string]interface{})
-	)
-
-	if ok {
-		sqlStr, args = buildInsertByMap(table, columns)
-	} else {
-		sqlStr, args, err = BuildInsertByReflect(table, row)
-		if err != nil {
-			return "", nil, err
-		}
-	}
-
-	return sqlStr, args, nil
-}
-
 func buildInsertByMap(table string, rows ...map[string]interface{}) (sql string, arguments []interface{}) {
 	if len(rows) < 0 {
 		return "", nil

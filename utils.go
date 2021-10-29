@@ -71,6 +71,11 @@ func Bytes2Int64(data []byte) (num int64) {
 	return num
 }
 
+func Bytes2Uint64(data []byte) (num uint64) {
+	num, _ = strconv.ParseUint(string(data), 10, 64)
+	return num
+}
+
 func HashOrNumber(key interface{}) (value uint32) {
 	switch key.(type) {
 	case uint8:

@@ -337,3 +337,56 @@ func (g *Group) Find(query *Query, useMaster bool) (rows *sql.Rows, err error) {
 
 	return result.(*sql.Rows), err
 }
+
+func (g *Group) FindOne(obj interface{}, query *Query, useMaster bool) (err error) {
+	query.limit = 1
+
+	var (
+		result       interface{}
+		sqlStr, args = buildQuery(query)
+	)
+
+	defer func() {
+		boot.ReleaseArgs(&args)
+	}()
+
+	if useMaster {
+		result, err = g.MasterExec(func(mPool *Pool) (i interface{}, e error) {
+			return mPool.db.Query(sqlStr, args...)
+		})
+	} else {
+		result, err = g.SlaveQuery(func(mPool *Pool) (i interface{}, e error) {
+			return mPool.db.Query(sqlStr, args...)
+		})
+	}
+
+	if err != nil {
+		return
+	}
+
+	return Row2Obj(result.(*sql.Rows), obj)
+}
+
+func (g *Group) InsertObj(obj interface{}) (result *ExecResult, err error) {
+	res, err := g.MasterExec(func(mPool *Pool) (i interface{}, e error) {
+		return mPool.InsertObj(obj)
+	})
+
+	return res.(*ExecResult), err
+}
+
+func (g *Group) DeleteObj(obj interface{}) (result *ExecResult, err error) {
+	res, err := g.MasterExec(func(mPool *Pool) (i interface{}, e error) {
+		return mPool.DeleteObj(obj)
+	})
+
+	return res.(*ExecResult), err
+}
+
+func (g *Group) UpdateObj(obj interface{}) (result *ExecResult, err error) {
+	res, err := g.MasterExec(func(mPool *Pool) (i interface{}, e error) {
+		return mPool.UpdateObj(obj)
+	})
+
+	return res.(*ExecResult), err
+}

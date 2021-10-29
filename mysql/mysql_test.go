@@ -31,7 +31,7 @@ type Config struct {
 type User struct {
 	Id        int64  `bdb:"id,primary"`
 	NickName  string `bdb:"nickname"`
-	CreatedAt int64  `bdb:"createAt,required"`
+	CreatedAt int64  `bdb:"created_at,required"`
 }
 
 func (u User) TableName() string {
@@ -52,15 +52,15 @@ func init() {
 
 func TestBuildInsertByReflect(t *testing.T) {
 	user := User{Id: 5}
-	sql, args, err := BuildInsertByReflect(user.TableName(), user)
+	sql, args, err := BuildInsertByObj(user)
 	t.Log(sql, args, err)
 
 	user.NickName = time.Now().String()
 	user.Id = 0
-	sql, args, err = BuildInsertByReflect(user.TableName(), &user)
+	sql, args, err = BuildInsertByObj(&user)
 	t.Log(sql, args, err)
 
-	sql, args, err = BuildInsertByReflect(user.TableName(), []User{{
+	sql, args, err = BuildInsertByObj([]User{{
 		NickName:  time.Now().String(),
 		CreatedAt: time.Now().Unix(),
 	},
@@ -74,23 +74,23 @@ func TestBuildInsertByReflect(t *testing.T) {
 
 func TestBuildDeleteByReflect(t *testing.T) {
 	user := User{Id: 5}
-	sql, args, err := BuildDeleteByReflect(user.TableName(), user)
+	sql, args, err := BuildDeleteByObj(user)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Fatal(sql, args, err)
+	t.Log(sql, args, err)
 }
 
 func TestBuildUpdateByReflect(t *testing.T) {
 	user := User{Id: 5}
-	sql, args, err := BuildUpdateByReflect(user.TableName(), user)
+	sql, args, err := BuildUpdateByObj(user)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Log(sql, args, err)
 
 	user.NickName = time.Now().String()
-	sql, args, err = BuildUpdateByReflect(user.TableName(), &user)
+	sql, args, err = BuildUpdateByObj(&user)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,6 +192,31 @@ func TestGroup_SlaveQuery(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 	}
+}
+
+func TestGroup_FindOne(t *testing.T) {
+	query := AcquireQuery()
+	defer ReleaseQuery(query)
+
+	query.Select("`id`", "`nickname`", "`created_at`").
+		From("`user`").
+		Where(map[string]interface{}{
+			"`created_at` BETWEEN": []interface{}{
+				0,
+				time.Now().Unix(),
+			},
+		}).
+		Order("`id` DESC")
+	user := &User{}
+	err := group.FindOne(user, query, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if user.Id < 1 {
+		t.Fatal("want >1 got <1")
+	}
+	t.Log(user)
 }
 
 func TestGroup_MasterQuery(t *testing.T) {

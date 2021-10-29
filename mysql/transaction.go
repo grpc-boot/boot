@@ -40,13 +40,13 @@ func (t *Transaction) Find(query *Query) (*sql.Rows, error) {
 	return t.tx.Query(sqlStr, args...)
 }
 
-func (t *Transaction) Insert(table string, row interface{}) (result *ExecResult, err error) {
+func (t *Transaction) Insert(table string, row map[string]interface{}) (result *ExecResult, err error) {
 	var (
 		sqlStr string
 		args   []interface{}
 	)
 
-	sqlStr, args, err = buildInsert(table, row)
+	sqlStr, args = buildInsertByMap(table, row)
 	if err != nil {
 		return nil, err
 	}
@@ -71,21 +71,14 @@ func (t *Transaction) Insert(table string, row interface{}) (result *ExecResult,
 	return
 }
 
-func (t *Transaction) BatchInsert(table string, rows interface{}) (result *ExecResult, err error) {
+func (t *Transaction) BatchInsert(table string, rows []map[string]interface{}) (result *ExecResult, err error) {
 	var (
-		_, ok  = rows.([]map[string]interface{})
 		sqlStr string
 		args   []interface{}
 	)
 
-	if ok {
-		sqlStr, args = buildInsertByMap(table, rows.([]map[string]interface{})...)
-	} else {
-		sqlStr, args, err = BuildInsertByReflect(table, rows)
-		if err != nil {
-			return nil, err
-		}
-	}
+	sqlStr, args = buildInsertByMap(table, rows...)
+
 	res, err := t.tx.Exec(sqlStr, args...)
 	if err != nil {
 		return nil, err
