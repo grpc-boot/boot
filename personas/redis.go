@@ -31,7 +31,7 @@ func (r *redisStorage) Load(id string) (data []byte, err error) {
 	red := pool.Get()
 	defer pool.Put(red)
 
-	return red.Get([]byte(r.prefix + id))
+	return red.GetBytes([]byte(r.prefix + id))
 }
 
 func (r *redisStorage) Set(id string, property uint16, value bool) (ok bool, err error) {

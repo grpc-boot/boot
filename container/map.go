@@ -5,21 +5,21 @@ import (
 	"hash/crc32"
 	"math"
 	"sync"
-	"sync/atomic"
 
 	"github.com/grpc-boot/boot"
+	"github.com/grpc-boot/boot/atomic"
 )
 
 type Map struct {
 	shardList [256]shard
-	length    uint64
+	length    atomic.Int64
 }
 
 func NewMap() *Map {
 	m := &Map{}
 	for index := 0; index < math.MaxUint8; index++ {
 		m.shardList[index] = shard{
-			items: make(map[interface{}]interface{}, 0),
+			items: make(map[interface{}]interface{}, 4),
 		}
 	}
 
@@ -55,6 +55,10 @@ func (m *Map) index(key interface{}) uint8 {
 		return uint8(uint64(key.(int64)) & math.MaxUint8)
 	case int:
 		return uint8(uint(key.(int)) & math.MaxUint8)
+	case float64:
+		return uint8(int64(key.(float64)) & math.MaxUint8)
+	case float32:
+		return uint8(int64(key.(float32)) & math.MaxUint8)
 	}
 
 	return uint8(crc32.ChecksumIEEE([]byte(fmt.Sprintln(key))) & math.MaxUint8)
@@ -62,7 +66,7 @@ func (m *Map) index(key interface{}) uint8 {
 
 func (m *Map) Set(key interface{}, value interface{}) {
 	if exists := m.shardList[m.index(key)].set(key, value); !exists {
-		atomic.AddUint64(&m.length, 1)
+		m.length.Incr(1)
 	}
 }
 
@@ -76,12 +80,12 @@ func (m *Map) Exists(key interface{}) (exists bool) {
 
 func (m *Map) Delete(key interface{}) {
 	if exists := m.shardList[m.index(key)].delete(key); exists {
-		atomic.AddUint64(&m.length, uint64(boot.Decr))
+		m.length.Incr(-1)
 	}
 }
 
-func (m *Map) Length() uint64 {
-	return atomic.LoadUint64(&m.length)
+func (m *Map) Length() int64 {
+	return m.length.Get()
 }
 
 type shard struct {
